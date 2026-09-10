@@ -48,6 +48,13 @@ struct MenuBarView: View {
                     }
                 }
             }
+            if error == .accessibilityPermissionDenied {
+                Button("Open Accessibility Settings…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
         }
 
         if let transcript = appState.lastTranscript {
