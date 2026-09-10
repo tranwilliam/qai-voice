@@ -26,6 +26,16 @@ Support common technical terms that are frequently misrecognized by the speech e
 
 ---
 
+## Customizable Hotkey
+
+Allow users to change the global hotkey from the default Option+Space to their preferred key combination.
+
+**Scope:** Add a settings window or menu option to rebind the hotkey. Store the user's choice in preferences. Update GlobalHotkeyMonitor to listen for the new key combination. Handle conflicts gracefully (warn if the chosen key is already bound by another app).
+
+**Why:** Option+Space may conflict with other tools or IME layouts. Users should be able to choose a binding that works for their workflow (e.g., Cmd+Shift+D, Ctrl+Option+V, or other combinations).
+
+---
+
 ## Clean Output (v0.3 — transcript transformation layer)
 
 Introduce a cleanup stage between raw transcription and insertion.
