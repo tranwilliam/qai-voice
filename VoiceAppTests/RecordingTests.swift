@@ -3,6 +3,35 @@ import XCTest
 
 @MainActor
 final class RecordingTests: XCTestCase {
+    func testSpeechAssemblerUsesFinalSegmentsInsteadOfPartialDuplicates() {
+        var assembler = SpeechTranscriptAssembler()
+
+        assembler.add([
+            SpeechTranscriptSegment(text: "First", timestamp: 0.0, duration: 0.0),
+            SpeechTranscriptSegment(text: "sentence", timestamp: 0.0, duration: 0.0)
+        ], isFinal: false)
+        assembler.add([
+            SpeechTranscriptSegment(text: "First", timestamp: 0.80, duration: 0.24),
+            SpeechTranscriptSegment(text: "sentence", timestamp: 1.04, duration: 0.36),
+            SpeechTranscriptSegment(text: "Second", timestamp: 2.80, duration: 0.42)
+        ], isFinal: true)
+
+        XCTAssertEqual(assembler.text, "First sentence Second")
+    }
+
+    func testSpeechAssemblerKeepsFinalizedUtterancesAcrossPause() {
+        var assembler = SpeechTranscriptAssembler()
+
+        assembler.add([
+            SpeechTranscriptSegment(text: "First sentence", timestamp: 0.80, duration: 0.60)
+        ], isFinal: true)
+        assembler.add([
+            SpeechTranscriptSegment(text: "Second sentence", timestamp: 3.20, duration: 0.80)
+        ], isFinal: true)
+
+        XCTAssertEqual(assembler.text, "First sentence Second sentence")
+    }
+
     func testDeniedPermissionNeverStartsCaptureAndAllowsRetry() async throws {
         let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
