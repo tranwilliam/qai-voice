@@ -23,7 +23,7 @@ xcodebuild -project VoiceApp.xcodeproj -scheme VoiceApp -configuration Debug -de
 open build/Build/Products/Debug/Voice.app
 ```
 
-The application lives in the menu bar, without a main window or Dock icon. The project uses local ad-hoc signing and disables App Sandbox for the planned Accessibility integration. Hardened runtime is enabled in project settings, but Xcode disables it for this ad-hoc build. The app is not configured for distribution or notarization.
+The application lives in the menu bar, without a main window or Dock icon. The project uses local ad-hoc signing and disables App Sandbox because synthetic-paste text insertion requires posting CGEvents and Accessibility trust, which the sandbox forbids. Hardened runtime is enabled in project settings, but Xcode disables it for this ad-hoc build. The app is not configured for distribution or notarization.
 
 ## Milestone 5 acceptance checks
 
