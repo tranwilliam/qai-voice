@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class RecordingTests: XCTestCase {
     func testDeniedPermissionNeverStartsCaptureAndAllowsRetry() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.permissionGranted = false
 
@@ -21,7 +21,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testDeniedSpeechPermissionNeverStartsCaptureAndAllowsRetry() async throws {
-        let (app, recorder, transcriber, directory) = try fixture()
+        let (app, recorder, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.authorizationGranted = false
 
@@ -38,7 +38,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testDuplicateStartsDoNotCreateAnotherPermissionRequestOrRecorder() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.pausePermission = true
         let first = Task { await app.startRecording() }
@@ -57,7 +57,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testCancellingPendingPermissionPreventsLateCapture() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.pausePermission = true
         let start = Task { await app.startRecording() }
@@ -73,7 +73,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testStartFailureCleansPartialFileAndAllowsAnotherSession() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.startError = .cannotStart
         await app.startRecording()
@@ -89,7 +89,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testSuccessfulStopProducesReadableAudioTranscriptAndNextSessionReplacesBoth() async throws {
-        let (app, _, transcriber, directory) = try fixture()
+        let (app, _, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.resultText = "hello world"
         await app.startRecording()
@@ -115,7 +115,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testStopFailureReturnsToReadyAndRemovesAudio() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         await app.startRecording()
         recorder.stopError = .recordingFailed
@@ -128,7 +128,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testUnexpectedRecorderFailureReturnsToReadyAndCanRestart() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         await app.startRecording()
         recorder.onFailure?(.recordingFailed)
@@ -142,7 +142,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testEmptyRecordingIsRejectedAndDeleted() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.frameCount = 0
         await app.startRecording()
@@ -155,7 +155,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testTranscriptionFailureKeepsRecordingAndReturnsToReady() async throws {
-        let (app, _, transcriber, directory) = try fixture()
+        let (app, _, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.transcribeError = .transcriptionFailed
         await app.startRecording()
@@ -170,7 +170,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testNoSpeechDetectedKeepsRecordingAndReturnsToReady() async throws {
-        let (app, _, transcriber, directory) = try fixture()
+        let (app, _, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.transcribeError = .noSpeechDetected
         await app.startRecording()
@@ -184,7 +184,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testShutdownDuringRecordingStopsCaptureAndRemovesAudio() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         await app.startRecording()
         app.shutdown()
@@ -195,7 +195,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testDeleteLastRecordingClearsFileAndMenuResult() async throws {
-        let (app, _, _, directory) = try fixture()
+        let (app, _, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         await app.startRecording()
         await app.stopRecording()
@@ -208,7 +208,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testToggleDictationFromIdleStartsRecording() async throws {
-        let (app, recorder, _, directory) = try fixture()
+        let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         await app.toggleDictation().value
@@ -219,7 +219,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testToggleDictationFromRecordingStopsAndTranscribes() async throws {
-        let (app, _, transcriber, directory) = try fixture()
+        let (app, _, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.resultText = "toggled off"
         await app.startRecording()
@@ -231,7 +231,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testToggleDictationDuringTranscribingIsANoOp() async throws {
-        let (app, _, transcriber, directory) = try fixture()
+        let (app, _, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.pauseTranscription = true
         await app.startRecording()
@@ -250,7 +250,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testShutdownDuringTranscriptionDiscardsResultAndRemovesAudio() async throws {
-        let (app, _, transcriber, directory) = try fixture()
+        let (app, _, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.pauseTranscription = true
         await app.startRecording()
@@ -269,7 +269,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testCancelDuringTranscriptionDiscardsErrorAndKeepsRecording() async throws {
-        let (app, _, transcriber, directory) = try fixture()
+        let (app, _, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.pauseTranscription = true
         await app.startRecording()
@@ -285,6 +285,69 @@ final class RecordingTests: XCTestCase {
         XCTAssertNil(app.lastError)
         XCTAssertNotNil(app.lastRecording)
         XCTAssertTrue(FileManager.default.fileExists(atPath: app.lastRecording!.url.path))
+        app.shutdown()
+    }
+
+    func testSuccessfulInsertionClearsNothingAndReturnsToIdle() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        await app.startRecording()
+        await app.stopRecording()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertNil(app.lastError)
+        XCTAssertNotNil(app.lastRecording)
+        XCTAssertNotNil(app.lastTranscript)
+        XCTAssertEqual(inserter.insertCallCount, 1)
+        app.shutdown()
+    }
+
+    func testAccessibilityNotTrustedSetsErrorAndPreservesTranscript() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        inserter.trusted = false
+        await app.startRecording()
+        await app.stopRecording()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastError, .accessibilityPermissionDenied)
+        XCTAssertNotNil(app.lastRecording)
+        XCTAssertNotNil(app.lastTranscript)
+        XCTAssertEqual(inserter.insertCallCount, 0)
+        app.shutdown()
+    }
+
+    func testInsertionFailureSetsErrorAndPreservesTranscript() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        inserter.insertResult = false
+        await app.startRecording()
+        await app.stopRecording()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastError, .insertionFailed)
+        XCTAssertNotNil(app.lastRecording)
+        XCTAssertNotNil(app.lastTranscript)
+        app.shutdown()
+    }
+
+    func testCancelDuringInsertionDiscardsResultAndKeepsTranscript() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        inserter.pauseInsert = true
+        await app.startRecording()
+        let stop = Task { await app.stopRecording() }
+        await waitForInsert(inserter)
+        XCTAssertEqual(app.state, .inserting)
+
+        app.cancelRecording()
+        inserter.resolveInsert(true)
+        await stop.value
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertNil(app.lastError)
+        XCTAssertNotNil(app.lastRecording)
+        XCTAssertNotNil(app.lastTranscript)
         app.shutdown()
     }
 
@@ -304,12 +367,18 @@ final class RecordingTests: XCTestCase {
         XCTAssertNil(app.lastError)
     }
 
-    private func fixture() throws -> (AppState, TestRecorder, FakeTranscriber, URL) {
+    private func fixture() throws -> (AppState, TestRecorder, FakeTranscriber, FakeInserter, URL) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let recorder = TestRecorder()
         let transcriber = FakeTranscriber()
-        let app = AppState(recorder: recorder, files: RecordingFiles(directory: directory), transcriber: transcriber)
-        return (app, recorder, transcriber, directory)
+        let inserter = FakeInserter()
+        let app = AppState(
+            recorder: recorder,
+            files: RecordingFiles(directory: directory),
+            transcriber: transcriber,
+            inserter: inserter
+        )
+        return (app, recorder, transcriber, inserter, directory)
     }
 
     private func waitForPermission(_ recorder: TestRecorder) async {
@@ -326,6 +395,14 @@ final class RecordingTests: XCTestCase {
             await Task.yield()
         }
         XCTFail("The controller did not start transcription")
+    }
+
+    private func waitForInsert(_ inserter: FakeInserter) async {
+        for _ in 0..<1000 {
+            if inserter.insertContinuation != nil { return }
+            await Task.yield()
+        }
+        XCTFail("The controller did not attempt text insertion")
     }
 }
 
@@ -411,5 +488,36 @@ private final class FakeTranscriber: SpeechTranscribing {
             transcriptionContinuation?.resume(throwing: error)
         }
         transcriptionContinuation = nil
+    }
+}
+
+@MainActor
+private final class FakeInserter: TextInserting {
+    var trusted = true
+    var promptCount = 0
+    var insertResult = true
+    var insertCallCount = 0
+    var pauseInsert = false
+    var insertContinuation: CheckedContinuation<Bool, Never>?
+
+    func isTrusted() -> Bool {
+        trusted
+    }
+
+    func promptForTrust() {
+        promptCount += 1
+    }
+
+    func insert(_ text: String) async -> Bool {
+        insertCallCount += 1
+        if pauseInsert {
+            return await withCheckedContinuation { insertContinuation = $0 }
+        }
+        return insertResult
+    }
+
+    func resolveInsert(_ result: Bool) {
+        insertContinuation?.resume(returning: result)
+        insertContinuation = nil
     }
 }

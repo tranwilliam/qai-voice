@@ -12,6 +12,7 @@ final class AppState {
 
     private let recorder: any AudioRecording
     private let transcriber: any SpeechTranscribing
+    private let inserter: any TextInserting
     private let files: RecordingFiles
     private var pendingURL: URL?
     private var attempt: UUID?
@@ -20,11 +21,13 @@ final class AppState {
     init(
         recorder: any AudioRecording = AudioRecordingService(),
         files: RecordingFiles = RecordingFiles(),
-        transcriber: any SpeechTranscribing = AppleSpeechTranscriptionService()
+        transcriber: any SpeechTranscribing = AppleSpeechTranscriptionService(),
+        inserter: any TextInserting = PasteboardTextInsertionService()
     ) {
         self.recorder = recorder
         self.files = files
         self.transcriber = transcriber
+        self.inserter = inserter
         do {
             try files.prepare()
         } catch {
@@ -94,12 +97,12 @@ final class AppState {
         }
 
         state = .transcribing
+        let transcript: TranscriptionResult
         do {
-            let transcript = try await transcriber.transcribe(fileAt: result.url, duration: result.duration)
+            transcript = try await transcriber.transcribe(fileAt: result.url, duration: result.duration)
             // If shutdown/cancel ran while we were awaiting, don't resurrect stale results.
             guard state == .transcribing else { return }
             lastTranscript = transcript
-            state = .idle
             logger.info("Transcription completed: \(transcript.rawText.count, privacy: .public) characters")
         } catch {
             guard state == .transcribing else { return }
@@ -107,7 +110,35 @@ final class AppState {
             lastError = transcriptionError
             state = .idle
             logger.error("Transcription failed: \(transcriptionError.localizedDescription, privacy: .public)")
+            return
         }
+
+        state = .inserting
+        guard inserter.isTrusted() else {
+            inserter.promptForTrust()
+            lastError = .accessibilityPermissionDenied
+            state = .idle
+            logger.error("Text insertion failed: Accessibility access not granted")
+            return
+        }
+        let inserted = await inserter.insert(transcript.rawText)
+        // If shutdown/cancel ran while we were awaiting, don't resurrect stale results.
+        guard state == .inserting else { return }
+        if inserted {
+            state = .idle
+            logger.info("Text inserted: \(transcript.rawText.count, privacy: .public) characters")
+        } else {
+            lastError = .insertionFailed
+            state = .idle
+            logger.error("Text insertion failed")
+        }
+    }
+
+    func cancelRecording() {
+        attempt = nil
+        recorder.cancelRecording()
+        removePendingRecording()
+        state = .idle
     }
 
     @discardableResult
@@ -122,13 +153,6 @@ final class AppState {
                 break
             }
         }
-    }
-
-    func cancelRecording() {
-        attempt = nil
-        recorder.cancelRecording()
-        removePendingRecording()
-        state = .idle
     }
 
     func deleteLastRecording() {
