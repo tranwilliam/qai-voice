@@ -207,6 +207,45 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(app.state, .idle)
     }
 
+    func testShutdownDuringTranscriptionDiscardsResultAndRemovesAudio() async throws {
+        let (app, _, transcriber, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.pauseTranscription = true
+        await app.startRecording()
+        let stop = Task { await app.stopRecording() }
+        await waitForTranscription(transcriber)
+        XCTAssertEqual(app.state, .transcribing)
+
+        app.shutdown()
+        transcriber.resolveTranscription(.success(TranscriptionResult(rawText: "late result", segments: [], duration: 0.1)))
+        await stop.value
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertNil(app.lastTranscript)
+        XCTAssertNil(app.lastRecording)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
+    }
+
+    func testCancelDuringTranscriptionDiscardsErrorAndKeepsRecording() async throws {
+        let (app, _, transcriber, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.pauseTranscription = true
+        await app.startRecording()
+        let stop = Task { await app.stopRecording() }
+        await waitForTranscription(transcriber)
+        XCTAssertEqual(app.state, .transcribing)
+
+        app.cancelRecording()
+        transcriber.resolveTranscription(.failure(.transcriptionFailed))
+        await stop.value
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertNil(app.lastError)
+        XCTAssertNotNil(app.lastRecording)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: app.lastRecording!.url.path))
+        app.shutdown()
+    }
+
     func testStartupRemovesAbandonedRecordingsButPreservesUnrelatedFiles() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -237,6 +276,14 @@ final class RecordingTests: XCTestCase {
             await Task.yield()
         }
         XCTFail("The controller did not request microphone permission")
+    }
+
+    private func waitForTranscription(_ transcriber: FakeTranscriber) async {
+        for _ in 0..<1000 {
+            if transcriber.transcriptionContinuation != nil { return }
+            await Task.yield()
+        }
+        XCTFail("The controller did not start transcription")
     }
 }
 
@@ -298,6 +345,8 @@ private final class FakeTranscriber: SpeechTranscribing {
     var transcribeError: RecordingError?
     var resultText = "hello world"
     var transcribeCallCount = 0
+    var pauseTranscription = false
+    var transcriptionContinuation: CheckedContinuation<TranscriptionResult, Error>?
 
     func requestAuthorization() async -> Bool {
         authorizationGranted
@@ -305,7 +354,20 @@ private final class FakeTranscriber: SpeechTranscribing {
 
     func transcribe(fileAt url: URL, duration: TimeInterval) async throws -> TranscriptionResult {
         transcribeCallCount += 1
+        if pauseTranscription {
+            return try await withCheckedThrowingContinuation { transcriptionContinuation = $0 }
+        }
         if let transcribeError { throw transcribeError }
         return TranscriptionResult(rawText: resultText, segments: [], duration: duration)
+    }
+
+    func resolveTranscription(_ result: Result<TranscriptionResult, RecordingError>) {
+        switch result {
+        case .success(let value):
+            transcriptionContinuation?.resume(returning: value)
+        case .failure(let error):
+            transcriptionContinuation?.resume(throwing: error)
+        }
+        transcriptionContinuation = nil
     }
 }
