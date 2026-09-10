@@ -26,7 +26,7 @@ struct MenuBarView: View {
         case .stopping:
             Text("Saving audio…")
         case .transcribing:
-            Text("Transcribing audio…")
+            Text("Transcribing…")
         }
 
         if let error = appState.lastError {
@@ -39,6 +39,19 @@ struct MenuBarView: View {
                     }
                 }
             }
+            if error == .speechPermissionDenied {
+                Button("Open Speech Recognition Settings…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+        }
+
+        if let transcript = appState.lastTranscript {
+            Divider()
+            Text("Transcript")
+            Text(transcript.rawText)
         }
 
         if let recording = appState.lastRecording {

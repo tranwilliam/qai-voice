@@ -28,5 +28,7 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Voice records your microphone when you start dictation. Audio stays on this Mac.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Voice transcribes your recordings using on-device speech recognition. Audio and text stay on this Mac.</string>
 </dict>
 </plist>
