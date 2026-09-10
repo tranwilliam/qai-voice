@@ -4,9 +4,10 @@ This file is the source of truth for work after the v0.1 dictation loop. Work on
 
 ## Recommended implementation order
 
-- [ ] **P0 — Transcript recovery:** copy and reinsert a transcript after the original focused app has no text field.
-- [ ] **P1 — Recording status overlay:** show a clear, non-focus-stealing animation while recording and transcribing.
-- [ ] **P2 — Default developer vocabulary pack:** add QA, IT, cloud, security, and AI terms as recognition hints and safe corrections.
+- [x] **P0 — Transcript recovery:** copy and reinsert a transcript after the original focused app has no text field.
+- [x] **P1 — Recording status overlay:** show a clear, non-focus-stealing animation while recording and transcribing.
+- [x] **P2 — Default developer vocabulary pack:** add QA, IT, cloud, security, and AI terms as recognition hints and safe corrections.
+- [ ] **P2b — Pause-based continuous insertion:** detect silence during recording and auto-insert sections without stopping, then press hotkey to end session.
 - [ ] **P3 — Recent transcript history:** retain the last 10–20 transcripts for copy, reinsert, delete, and clear actions.
 - [ ] **P4 — Terminal-aware formatting:** improve paths, flags, package names, URLs, punctuation, and spoken “new line” handling.
 - [ ] **P5 — Engine benchmark:** compare Apple Speech, local Whisper, and Parakeet on the same recordings.
@@ -143,6 +144,24 @@ m p c            -> MCP
 ```
 
 The raw transcript must remain unchanged for debugging and history. Corrections apply only to the text prepared for insertion.
+
+## P2b — Pause-based continuous insertion
+
+Enable longer dictation sessions without stopping and restarting the app.
+
+- Change recording to continuous mode (press hotkey once to start, once to stop)
+- Detect silence/pauses during recording (configurable threshold, ~1–2 seconds)
+- Auto-transcribe and auto-insert each section when pause detected
+- Keep full session transcript available for copy/reinsert at end
+- No history integration yet (save for P3)
+
+Acceptance criteria:
+
+- Press hotkey → start continuous recording
+- Dictate a section, pause (silence detected) → auto-insert that section
+- Continue dictating next section, pause → auto-insert
+- Press hotkey → stop recording, full session transcript remains for copy
+- Each section inserts independently; full session stays in memory for manual copy
 
 ## P3 — Recent transcript history
 
