@@ -110,6 +110,20 @@ final class AppState {
         }
     }
 
+    @discardableResult
+    func toggleDictation() -> Task<Void, Never> {
+        Task {
+            switch state {
+            case .idle:
+                await startRecording()
+            case .recording:
+                await stopRecording()
+            case .requestingPermission, .stopping, .transcribing:
+                break
+            }
+        }
+    }
+
     func cancelRecording() {
         attempt = nil
         recorder.cancelRecording()

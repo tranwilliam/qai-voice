@@ -207,6 +207,48 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(app.state, .idle)
     }
 
+    func testToggleDictationFromIdleStartsRecording() async throws {
+        let (app, recorder, _, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        await app.toggleDictation().value
+
+        XCTAssertEqual(app.state, .recording)
+        XCTAssertEqual(recorder.startCount, 1)
+        app.shutdown()
+    }
+
+    func testToggleDictationFromRecordingStopsAndTranscribes() async throws {
+        let (app, _, transcriber, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.resultText = "toggled off"
+        await app.startRecording()
+
+        await app.toggleDictation().value
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastTranscript?.rawText, "toggled off")
+    }
+
+    func testToggleDictationDuringTranscribingIsANoOp() async throws {
+        let (app, _, transcriber, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.pauseTranscription = true
+        await app.startRecording()
+        let stop = Task { await app.stopRecording() }
+        await waitForTranscription(transcriber)
+        XCTAssertEqual(app.state, .transcribing)
+
+        await app.toggleDictation().value
+
+        XCTAssertEqual(app.state, .transcribing)
+        XCTAssertEqual(transcriber.transcribeCallCount, 1)
+
+        transcriber.resolveTranscription(.success(TranscriptionResult(rawText: "done", segments: [], duration: 0.1)))
+        await stop.value
+        app.shutdown()
+    }
+
     func testShutdownDuringTranscriptionDiscardsResultAndRemovesAudio() async throws {
         let (app, _, transcriber, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
