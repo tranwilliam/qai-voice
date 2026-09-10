@@ -4,20 +4,62 @@ import OSLog
 private let logger = Logger(subsystem: "com.williamt.voiceapp", category: "Speech")
 
 enum TechnicalVocabulary {
-    static let terms: [String] = [
-        "Playwright",
-        "pytest",
-        "DynamoDB",
-        "Cloudflare",
-        "GitLab",
-        "preprod",
-        "Zero Trust",
-        "storage_state",
-        "regression",
-        "smoke test",
-        "frontend",
-        "backend"
+    // QA and testing vocabulary
+    static let qaAndTesting = [
+        "quality assurance", "QA", "SDET", "test plan", "test case", "test suite",
+        "test scenario", "test data", "test environment", "acceptance criteria",
+        "regression testing", "smoke testing", "sanity testing", "exploratory testing",
+        "unit testing", "integration testing", "end-to-end testing", "system testing",
+        "UAT", "API testing", "contract testing", "functional testing",
+        "non-functional testing", "performance testing", "load testing", "stress testing",
+        "soak testing", "accessibility testing", "security testing", "compatibility testing",
+        "cross-browser testing", "defect", "bug", "bug triage", "flaky test",
+        "severity", "priority", "root cause", "escalation", "stakeholder", "sign-off",
+        "assertion", "matcher", "fixture", "mock", "stub", "spy", "test harness", "locator",
+        "selector", "CSS selector", "XPath", "page object model", "headless browser",
+        "DOM", "BDD", "Gherkin", "Given When Then", "Arrange Act Assert"
     ]
+
+    // QA and developer tools
+    static let qaAndDeveloperTools = [
+        "Playwright", "Selenium", "Cypress", "Appium", "Postman", "Newman", "Swagger", "Jest",
+        "Vitest", "pytest", "JUnit", "TestNG", "Cucumber", "Allure", "BrowserStack",
+        "Sauce Labs",
+        "Git", "GitHub", "GitLab", "Bitbucket", "pull request", "merge request", "commit",
+        "branch", "rebase", "cherry-pick", "CI/CD", "GitHub Actions", "Jenkins", "CircleCI",
+        "Buildkite", "Docker", "Kubernetes", "Helm", "Terraform", "Ansible", "Bash", "Zsh",
+        "PowerShell", "SSH", "tmux", "Terminal", "iTerm2", "VS Code", "sprint", "backlog",
+        "standup", "retro", "ticket", "release candidate", "staging", "production",
+        "rollback", "hotfix", "deployment pipeline"
+    ]
+
+    // Cloud, databases, and security
+    static let cloudAndSecurity = [
+        "AWS", "Amazon Web Services", "Azure", "Google Cloud", "GCP", "Lambda", "EC2", "S3",
+        "DynamoDB", "CloudFormation", "IAM", "VPC", "EKS", "ECS", "Cloudflare", "Vercel",
+        "Netlify", "Nginx", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch",
+        "Kafka", "RabbitMQ", "Prometheus", "Grafana", "Datadog", "Sentry", "OAuth",
+        "OAuth 2.0", "OpenID Connect", "OIDC", "JWT", "SAML", "SSO", "MFA", "Zero Trust",
+        "TLS", "SSL", "secrets manager", "container", "microservice", "webhook", "latency",
+        "throughput", "uptime", "SLA"
+    ]
+
+    // AI companies, models, and tools
+    static let aiModelsAndTools = [
+        "OpenAI", "ChatGPT", "GPT", "GPT-5", "GPT-5.1", "Codex", "GPT-5.1-Codex", "Whisper",
+        "Anthropic", "Claude", "Claude Code", "Claude Opus", "Claude Sonnet", "Claude Haiku",
+        "Google DeepMind", "Gemini", "Gemini Pro", "Gemini Flash", "Gemma", "Vertex AI",
+        "Meta AI", "Llama", "Llama 4 Scout", "Llama 4 Maverick", "Mistral AI",
+        "Mistral Large", "Mistral Medium", "Mistral Small", "Codestral", "Devstral",
+        "Magistral", "Voxtral", "xAI", "Grok", "DeepSeek", "DeepSeek-R1", "DeepSeek-V3",
+        "Qwen", "Cohere", "Command", "AI21", "Jamba", "NVIDIA", "NeMo", "Nemotron", "Parakeet",
+        "Hugging Face", "Transformers", "vLLM", "Ollama", "LM Studio", "MCP",
+        "Model Context Protocol", "RAG", "embeddings", "vector database",
+        "function calling", "tool use", "agents", "agentic"
+    ]
+
+    // All terms combined for speech recognition hints
+    static let terms: [String] = qaAndTesting + qaAndDeveloperTools + cloudAndSecurity + aiModelsAndTools
 }
 
 // Temporary diagnostics for the pause-boundary bug. Text is intentionally visible

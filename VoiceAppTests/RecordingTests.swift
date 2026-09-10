@@ -3,11 +3,35 @@ import XCTest
 
 @MainActor
 final class RecordingTests: XCTestCase {
-    func testTechnicalVocabularyContainsExpectedTerms() {
-        let terms = TechnicalVocabulary.terms
-        let expected = ["Playwright", "pytest", "DynamoDB", "Cloudflare", "GitLab", "preprod", "Zero Trust", "storage_state", "regression", "smoke test", "frontend", "backend"]
-        for term in expected {
-            XCTAssertTrue(terms.contains(term), "Missing expected vocabulary term: \(term)")
+    func testTechnicalVocabularyContainsQATerms() {
+        let terms = TechnicalVocabulary.qaAndTesting
+        let expectedQA = ["QA", "test case", "regression testing", "smoke testing", "bug", "mock", "BDD", "Gherkin"]
+        for term in expectedQA {
+            XCTAssertTrue(terms.contains(term), "Missing QA term: \(term)")
+        }
+    }
+
+    func testTechnicalVocabularyContainsDeveloperTools() {
+        let terms = TechnicalVocabulary.qaAndDeveloperTools
+        let expectedTools = ["Playwright", "pytest", "GitHub", "GitLab", "Docker", "Kubernetes", "VS Code", "CI/CD"]
+        for term in expectedTools {
+            XCTAssertTrue(terms.contains(term), "Missing developer tool: \(term)")
+        }
+    }
+
+    func testTechnicalVocabularyContainsCloudTerms() {
+        let terms = TechnicalVocabulary.cloudAndSecurity
+        let expectedCloud = ["AWS", "Azure", "DynamoDB", "Cloudflare", "PostgreSQL", "OAuth", "Zero Trust", "JWT"]
+        for term in expectedCloud {
+            XCTAssertTrue(terms.contains(term), "Missing cloud/security term: \(term)")
+        }
+    }
+
+    func testTechnicalVocabularyContainsAITerms() {
+        let terms = TechnicalVocabulary.aiModelsAndTools
+        let expectedAI = ["Claude", "ChatGPT", "Anthropic", "OpenAI", "Llama", "Parakeet", "RAG", "embeddings"]
+        for term in expectedAI {
+            XCTAssertTrue(terms.contains(term), "Missing AI term: \(term)")
         }
     }
 
@@ -21,6 +45,11 @@ final class RecordingTests: XCTestCase {
         for term in terms {
             XCTAssertFalse(term.trimmingCharacters(in: .whitespaces).isEmpty, "Vocabulary contains empty or whitespace-only term")
         }
+    }
+
+    func testTechnicalVocabularyReachesMinimumCoverage() {
+        let terms = TechnicalVocabulary.terms
+        XCTAssertGreaterThanOrEqual(terms.count, 200, "Vocabulary should include at least 200+ terms for comprehensive coverage")
     }
     func testSpeechAssemblerUsesFinalSegmentsInsteadOfPartialDuplicates() {
         var assembler = SpeechTranscriptAssembler()
