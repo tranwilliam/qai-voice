@@ -64,7 +64,7 @@ final class RecordingTests: XCTestCase {
 
     func testOverlayPhaseInsertingToIdleSuccess() {
         let phase = overlayPhase(previous: .inserting, current: .idle, lastError: nil)
-        XCTAssertEqual(phase, .success)
+        XCTAssertEqual(phase, .hidden)
     }
 
     func testOverlayPhaseInsertingToIdleFailure() {

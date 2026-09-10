@@ -22,7 +22,7 @@ func overlayPhase(previous: DictationState, current: DictationState, lastError: 
     case .idle:
         switch previous {
         case .inserting:
-            return lastError.map { .failure(message: $0.localizedDescription) } ?? .success
+            return lastError.map { .failure(message: $0.localizedDescription) } ?? .hidden
         case .idle:
             return .hidden
         default:

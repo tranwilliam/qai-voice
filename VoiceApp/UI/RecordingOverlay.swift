@@ -14,69 +14,41 @@ struct RecordingOverlayView: View {
                 EmptyView()
             case .recording:
                 overlayContent {
-                    HStack(spacing: 12) {
+                    VStack(spacing: 8) {
                         Image(systemName: "mic.fill")
-                            .font(.system(size: 18))
+                            .font(.system(size: 24))
                             .foregroundColor(.white)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Listening")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
-                            WaveformView()
-                                .frame(height: 20)
-                        }
+                        WaveformView()
+                            .frame(width: 40, height: 16)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(12)
                 }
-            case .processing(let label):
+            case .processing:
                 overlayContent {
-                    HStack(spacing: 12) {
-                        ProgressView()
-                            .scaleEffect(0.8, anchor: .center)
-                        Text(label)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    ProgressView()
+                        .scaleEffect(1.2, anchor: .center)
+                        .padding(12)
                 }
             case .success:
                 overlayContent {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.green)
-                        Text("Done")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(.green)
+                        .padding(12)
                 }
                 .transition(.opacity)
-            case .failure(let message):
+            case .failure:
                 overlayContent {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(.orange)
-                            Text("Transcript saved")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        Text(message)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.8))
-                            .lineLimit(2)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(.orange)
+                        .padding(12)
                 }
                 .transition(.opacity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .position(x: 150, y: 35)
         .onChange(of: appState.state) { oldState, newState in
             hideTask?.cancel()
             let newPhase = overlayPhase(previous: oldState, current: newState, lastError: appState.lastError)
@@ -108,7 +80,17 @@ struct RecordingOverlayView: View {
     @ViewBuilder
     private func overlayContent<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
         content()
-            .background(.regularMaterial)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.2, green: 0.7, blue: 0.8),  // Teal
+                        Color(red: 0.0, green: 0.2, blue: 0.5)   // Dark blue
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .opacity(0.9)
             .cornerRadius(12)
             .shadow(radius: 8)
             .padding(16)
@@ -155,8 +137,7 @@ final class RecordingOverlayController {
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
 
-        self.panel = NSPanel()
-        panel.styleMask = [.borderless, .nonactivatingPanel]
+        self.panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 300, height: 70), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.isOpaque = false
@@ -164,9 +145,16 @@ final class RecordingOverlayController {
         panel.hasShadow = false
         panel.ignoresMouseEvents = true
         panel.contentView = hostingView
+        panel.isReleasedWhenClosed = false
+
+        hostingView.topAnchor.constraint(equalTo: panel.contentView!.topAnchor).isActive = true
+        hostingView.bottomAnchor.constraint(equalTo: panel.contentView!.bottomAnchor).isActive = true
+        hostingView.leadingAnchor.constraint(equalTo: panel.contentView!.leadingAnchor).isActive = true
+        hostingView.trailingAnchor.constraint(equalTo: panel.contentView!.trailingAnchor).isActive = true
 
         panel.setFrameAutosaveName("RecordingOverlay")
         positionPanel()
+        panel.orderFrontRegardless()
     }
 
     private func positionPanel() {
