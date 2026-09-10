@@ -3,6 +3,25 @@ import XCTest
 
 @MainActor
 final class RecordingTests: XCTestCase {
+    func testTechnicalVocabularyContainsExpectedTerms() {
+        let terms = TechnicalVocabulary.terms
+        let expected = ["Playwright", "pytest", "DynamoDB", "Cloudflare", "GitLab", "preprod", "Zero Trust", "storage_state", "regression", "smoke test", "frontend", "backend"]
+        for term in expected {
+            XCTAssertTrue(terms.contains(term), "Missing expected vocabulary term: \(term)")
+        }
+    }
+
+    func testTechnicalVocabularyHasNoDuplicates() {
+        let terms = TechnicalVocabulary.terms
+        XCTAssertEqual(terms.count, Set(terms).count, "Vocabulary contains duplicate terms")
+    }
+
+    func testTechnicalVocabularyHasNoEmptyTerms() {
+        let terms = TechnicalVocabulary.terms
+        for term in terms {
+            XCTAssertFalse(term.trimmingCharacters(in: .whitespaces).isEmpty, "Vocabulary contains empty or whitespace-only term")
+        }
+    }
     func testSpeechAssemblerUsesFinalSegmentsInsteadOfPartialDuplicates() {
         var assembler = SpeechTranscriptAssembler()
 

@@ -16,13 +16,17 @@ Give users manual control over dictated transcripts when automatic insertion fai
 
 ---
 
-## Technical Vocabulary
+## ✅ Technical Vocabulary
 
 Support common technical terms that are frequently misrecognized by the speech engine.
 
-**Scope:** Custom vocabulary hints to the speech engine (approach TBD — could be hardcoded list for v0.2, user editable later).
+**What shipped:**
+- 12-term vocabulary list passed to Apple's on-device recognizer via `SFSpeechRecognitionRequest.contextualStrings`
+- Includes: Playwright, pytest, DynamoDB, Cloudflare, GitLab, preprod, Zero Trust, storage_state, regression, smoke test, frontend, backend
+- Tests verify no duplicates, no empty strings, all expected terms present
+- Clean integration into `AppleSpeechTranscriptionService.transcribe()` — one line addition to request setup
 
-**Why:** Will regularly dictates words like "Playwright", "pytest", "DynamoDB", "preprod", "regression" that the default recognizer often misses or mishears. This is the next quality-of-life improvement after the core loop is solid.
+**Why:** Will regularly dictates words like "Playwright", "pytest", "DynamoDB", "preprod", "regression" that the default recognizer often misses or mishears. Using Apple's native contextual strings feature biases the on-device engine toward these terms without a fixed grammar, improving recognition quality naturally.
 
 ---
 

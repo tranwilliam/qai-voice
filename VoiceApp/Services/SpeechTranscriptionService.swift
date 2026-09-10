@@ -3,6 +3,23 @@ import OSLog
 
 private let logger = Logger(subsystem: "com.williamt.voiceapp", category: "Speech")
 
+enum TechnicalVocabulary {
+    static let terms: [String] = [
+        "Playwright",
+        "pytest",
+        "DynamoDB",
+        "Cloudflare",
+        "GitLab",
+        "preprod",
+        "Zero Trust",
+        "storage_state",
+        "regression",
+        "smoke test",
+        "frontend",
+        "backend"
+    ]
+}
+
 // Temporary diagnostics for the pause-boundary bug. Text is intentionally visible
 // in local Debug logs; Release builds neither evaluate nor emit these messages.
 private func speechDiagnostic(_ message: @autoclosure () -> String) {
@@ -47,6 +64,7 @@ final class AppleSpeechTranscriptionService: SpeechTranscribing {
         let request = SFSpeechURLRecognitionRequest(url: url)
         request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = true
+        request.contextualStrings = TechnicalVocabulary.terms
 
         let traceID = UUID().uuidString
         let traceStart = Date()
