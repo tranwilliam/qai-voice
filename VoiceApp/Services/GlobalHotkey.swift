@@ -3,8 +3,8 @@ import OSLog
 
 @MainActor
 final class GlobalHotkeyMonitor {
-    private var hotKeyRef: EventHotKeyRef?
-    private var eventHandlerRef: EventHandlerRef?
+    private nonisolated(unsafe) var hotKeyRef: EventHotKeyRef?
+    private nonisolated(unsafe) var eventHandlerRef: EventHandlerRef?
     private var onPress: (() -> Void)?
     private let logger = Logger(subsystem: "com.williamt.voiceapp", category: "Hotkey")
 
@@ -57,6 +57,15 @@ final class GlobalHotkeyMonitor {
             self.eventHandlerRef = nil
         }
         onPress = nil
+    }
+
+    deinit {
+        if let hotKeyRef {
+            UnregisterEventHotKey(hotKeyRef)
+        }
+        if let eventHandlerRef {
+            RemoveEventHandler(eventHandlerRef)
+        }
     }
 }
 
