@@ -165,6 +165,27 @@ final class AppState {
         }
     }
 
+    func copyTranscript() {
+        guard let lastTranscript else { return }
+        inserter.copyToClipboard(lastTranscript.rawText)
+        lastError = nil
+    }
+
+    func insertTranscript() async {
+        guard state == .idle, let lastTranscript else { return }
+        state = .inserting
+        guard inserter.isTrusted() else {
+            inserter.promptForTrust()
+            lastError = .accessibilityPermissionDenied
+            state = .idle
+            return
+        }
+        let inserted = await inserter.insert(lastTranscript.rawText)
+        guard state == .inserting else { return }
+        state = .idle
+        lastError = inserted ? nil : .insertionFailed
+    }
+
     func shutdown() {
         cancelRecording()
         deleteLastRecording()

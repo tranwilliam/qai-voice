@@ -61,6 +61,14 @@ struct MenuBarView: View {
             Divider()
             Text("Transcript")
             Text(transcript.rawText)
+            if appState.state == .idle {
+                Button("Copy Transcript") {
+                    appState.copyTranscript()
+                }
+                Button("Insert Transcript") {
+                    Task { await appState.insertTranscript() }
+                }
+            }
         }
 
         if let recording = appState.lastRecording {

@@ -16,6 +16,7 @@ protocol TextInserting: AnyObject {
     func isTrusted() -> Bool
     func promptForTrust()
     func insert(_ text: String) async -> Bool
+    func copyToClipboard(_ text: String)
 }
 
 @MainActor
@@ -71,5 +72,11 @@ final class PasteboardTextInsertionService: TextInserting {
         }
 
         return true
+    }
+
+    func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
 }

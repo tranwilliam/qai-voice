@@ -396,6 +396,139 @@ final class RecordingTests: XCTestCase {
         XCTAssertNil(app.lastError)
     }
 
+    func testCopyTranscriptCopiesTextToClipboard() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        await app.startRecording()
+        await app.stopRecording()
+        let transcript = try XCTUnwrap(app.lastTranscript)
+
+        app.copyTranscript()
+
+        XCTAssertEqual(inserter.copyCallCount, 1)
+        XCTAssertEqual(inserter.lastCopiedText, transcript.rawText)
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertNil(app.lastError)
+        app.shutdown()
+    }
+
+    func testCopyTranscriptClearsStalError() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        inserter.insertResult = false
+        await app.startRecording()
+        await app.stopRecording()
+        XCTAssertEqual(app.lastError, .insertionFailed)
+
+        app.copyTranscript()
+
+        XCTAssertNil(app.lastError)
+        app.shutdown()
+    }
+
+    func testCopyTranscriptIsNoOpWhenNoTranscript() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        app.copyTranscript()
+
+        XCTAssertEqual(inserter.copyCallCount, 0)
+        XCTAssertEqual(app.state, .idle)
+        app.shutdown()
+    }
+
+    func testInsertTranscriptReusesLastTranscript() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        await app.startRecording()
+        await app.stopRecording()
+        let firstInsertCount = inserter.insertCallCount
+
+        await app.insertTranscript()
+
+        XCTAssertEqual(inserter.insertCallCount, firstInsertCount + 1)
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertNil(app.lastError)
+        app.shutdown()
+    }
+
+    func testInsertTranscriptFailsWhenAccessibilityNotTrusted() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        inserter.trusted = false
+        await app.startRecording()
+        await app.stopRecording()
+        let transcript = try XCTUnwrap(app.lastTranscript)
+        let promptCountAfterAutomatic = inserter.promptCount
+
+        await app.insertTranscript()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastError, .accessibilityPermissionDenied)
+        XCTAssertEqual(inserter.promptCount, promptCountAfterAutomatic + 1)
+        XCTAssertNotNil(app.lastTranscript)
+        XCTAssertEqual(app.lastTranscript?.rawText, transcript.rawText)
+        app.shutdown()
+    }
+
+    func testInsertTranscriptSetsErrorWhenInsertionFails() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        inserter.insertResult = false
+        await app.startRecording()
+        await app.stopRecording()
+        let transcript = try XCTUnwrap(app.lastTranscript)
+
+        await app.insertTranscript()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastError, .insertionFailed)
+        XCTAssertNotNil(app.lastTranscript)
+        XCTAssertEqual(app.lastTranscript?.rawText, transcript.rawText)
+        app.shutdown()
+    }
+
+    func testInsertTranscriptIsNoOpWhenNotIdle() async throws {
+        let (app, recorder, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        await app.startRecording()
+        XCTAssertEqual(app.state, .recording)
+
+        await app.insertTranscript()
+
+        XCTAssertEqual(app.state, .recording)
+        XCTAssertEqual(inserter.insertCallCount, 0)
+        app.shutdown()
+    }
+
+    func testInsertTranscriptIsNoOpWhenNoTranscript() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        await app.insertTranscript()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(inserter.insertCallCount, 0)
+        app.shutdown()
+    }
+
+    func testSuccessfulManualInsertClearsStaleError() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        inserter.insertResult = false
+        await app.startRecording()
+        await app.stopRecording()
+        XCTAssertEqual(app.lastError, .insertionFailed)
+
+        inserter.insertResult = true
+        await app.insertTranscript()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertNil(app.lastError)
+        XCTAssertNotNil(app.lastTranscript)
+        app.shutdown()
+    }
+
     private func fixture() throws -> (AppState, TestRecorder, FakeTranscriber, FakeInserter, URL) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let recorder = TestRecorder()
@@ -528,6 +661,8 @@ private final class FakeInserter: TextInserting {
     var insertCallCount = 0
     var pauseInsert = false
     var insertContinuation: CheckedContinuation<Bool, Never>?
+    var copyCallCount = 0
+    var lastCopiedText: String?
 
     func isTrusted() -> Bool {
         trusted
@@ -548,5 +683,10 @@ private final class FakeInserter: TextInserting {
     func resolveInsert(_ result: Bool) {
         insertContinuation?.resume(returning: result)
         insertContinuation = nil
+    }
+
+    func copyToClipboard(_ text: String) {
+        copyCallCount += 1
+        lastCopiedText = text
     }
 }
