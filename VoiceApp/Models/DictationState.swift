@@ -3,6 +3,7 @@ enum DictationState {
     case requestingPermission
     case recording
     case stopping
+    case transcribing
 
     var title: String {
         switch self {
@@ -10,13 +11,14 @@ enum DictationState {
         case .requestingPermission: "Waiting for Microphone Access"
         case .recording: "Recording…"
         case .stopping: "Finishing Recording…"
+        case .transcribing: "Transcribing…"
         }
     }
 
     var symbolName: String {
         switch self {
         case .idle: "mic"
-        case .requestingPermission, .stopping: "hourglass"
+        case .requestingPermission, .stopping, .transcribing: "hourglass"
         case .recording: "stop.circle.fill"
         }
     }
