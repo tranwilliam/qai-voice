@@ -23,7 +23,6 @@ struct RecordingOverlayView: View {
                     }
                     .padding(12)
                 }
-                .scaleEffect(y: phase != .hidden ? 1 : 0.3, anchor: .center)
                 .transition(.opacity)
             case .processing:
                 overlayContent {
@@ -31,7 +30,6 @@ struct RecordingOverlayView: View {
                         .scaleEffect(1.2, anchor: .center)
                         .padding(12)
                 }
-                .scaleEffect(y: phase != .hidden ? 1 : 0.3, anchor: .center)
                 .transition(.opacity)
             case .success:
                 overlayContent {
@@ -40,7 +38,6 @@ struct RecordingOverlayView: View {
                         .foregroundColor(.green)
                         .padding(12)
                 }
-                .scaleEffect(y: phase != .hidden ? 1 : 0.3, anchor: .center)
                 .transition(.opacity)
             case .failure:
                 overlayContent {
@@ -49,7 +46,6 @@ struct RecordingOverlayView: View {
                         .foregroundColor(.orange)
                         .padding(12)
                 }
-                .scaleEffect(y: phase != .hidden ? 1 : 0.3, anchor: .center)
                 .transition(.opacity)
             }
         }
