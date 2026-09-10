@@ -36,7 +36,11 @@ final class AppleSpeechTranscriptionService: SpeechTranscribing {
 
         let result: SFSpeechRecognitionResult
         do {
-            result = try await withCheckedThrowingContinuation { continuation in
+            // SFSpeechRecognitionResult predates Swift concurrency and isn't Sendable.
+            // The recognizer's completion handler hands it to us exactly once (guarded
+            // by didResume below), so boxing it as unchecked-Sendable to cross the
+            // continuation boundary is safe: no concurrent access is possible.
+            let box: UncheckedSendableBox<SFSpeechRecognitionResult> = try await withCheckedThrowingContinuation { continuation in
                 // The recognizer delivers callbacks for one task serially, so a
                 // plain flag (not a lock) is enough to guard against a second
                 // callback resuming an already-resumed continuation.
@@ -48,10 +52,11 @@ final class AppleSpeechTranscriptionService: SpeechTranscribing {
                         continuation.resume(throwing: error)
                     } else if let taskResult, taskResult.isFinal {
                         didResume = true
-                        continuation.resume(returning: taskResult)
+                        continuation.resume(returning: UncheckedSendableBox(value: taskResult))
                     }
                 }
             }
+            result = box.value
         } catch {
             throw RecordingError.transcriptionFailed
         }
@@ -66,4 +71,11 @@ final class AppleSpeechTranscriptionService: SpeechTranscribing {
         }
         return TranscriptionResult(rawText: text, segments: segments, duration: duration)
     }
+}
+
+/// Carries a non-Sendable value across an actor boundary. Only safe when the
+/// caller can guarantee no concurrent access to `value`, as is the case for the
+/// single completion-handler callback above.
+private struct UncheckedSendableBox<Value>: @unchecked Sendable {
+    let value: Value
 }

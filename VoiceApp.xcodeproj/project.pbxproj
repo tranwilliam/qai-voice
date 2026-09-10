@@ -19,6 +19,10 @@
         C10000000000000000000013 = {isa = PBXBuildFile; fileRef = C20000000000000000000001; };
         C10000000000000000000014 = {isa = PBXBuildFile; fileRef = C20000000000000000000002; };
         C10000000000000000000015 = {isa = PBXBuildFile; fileRef = C20000000000000000000003; };
+        D10000000000000000000001 = {isa = PBXBuildFile; fileRef = D20000000000000000000001; };
+        D10000000000000000000002 = {isa = PBXBuildFile; fileRef = D20000000000000000000002; };
+        D10000000000000000000011 = {isa = PBXBuildFile; fileRef = D20000000000000000000001; };
+        D10000000000000000000012 = {isa = PBXBuildFile; fileRef = D20000000000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +37,8 @@
         C20000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CapturedRecording.swift; path = Models/CapturedRecording.swift; sourceTree = "<group>"; };
         C20000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RecordingFiles.swift; path = Services/RecordingFiles.swift; sourceTree = "<group>"; };
         C20000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioRecordingService.swift; path = Services/AudioRecordingService.swift; sourceTree = "<group>"; };
+        D20000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TranscriptionResult.swift; path = Models/TranscriptionResult.swift; sourceTree = "<group>"; };
+        D20000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SpeechTranscriptionService.swift; path = Services/SpeechTranscriptionService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,7 +53,7 @@
 		};
 		A40000000000000000000002 /* VoiceApp */ = {
 			isa = PBXGroup;
-			children = (C20000000000000000000002, C20000000000000000000003, C20000000000000000000001, A40000000000000000000003 /* App */, A40000000000000000000004 /* Models */, A40000000000000000000005 /* UI */, A20000000000000000000005 /* Info.plist */);
+			children = (C20000000000000000000002, C20000000000000000000003, C20000000000000000000001, D20000000000000000000001, D20000000000000000000002, A40000000000000000000003 /* App */, A40000000000000000000004 /* Models */, A40000000000000000000005 /* UI */, A20000000000000000000005 /* Info.plist */);
 			path = VoiceApp;
 			sourceTree = "<group>";
 		};
@@ -107,8 +113,8 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C10000000000000000000002, C10000000000000000000003, C10000000000000000000001, A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004); runOnlyForDeploymentPostprocessing = 0; };
-		B30000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C10000000000000000000012, C10000000000000000000013, C10000000000000000000014, C10000000000000000000015, C10000000000000000000011, B10000000000000000000001); runOnlyForDeploymentPostprocessing = 0; };
+		A30000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C10000000000000000000002, C10000000000000000000003, C10000000000000000000001, D10000000000000000000001, D10000000000000000000002, A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, A10000000000000000000004); runOnlyForDeploymentPostprocessing = 0; };
+		B30000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (C10000000000000000000012, C10000000000000000000013, C10000000000000000000014, C10000000000000000000015, C10000000000000000000011, D10000000000000000000011, D10000000000000000000012, B10000000000000000000001); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

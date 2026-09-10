@@ -21,7 +21,7 @@ struct MenuBarView: View {
             }
         case .recording:
             Button("Stop Dictation", systemImage: "stop.fill") {
-                appState.stopRecording()
+                Task { await appState.stopRecording() }
             }
         case .stopping:
             Text("Saving audio…")
