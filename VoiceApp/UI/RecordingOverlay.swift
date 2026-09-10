@@ -23,12 +23,16 @@ struct RecordingOverlayView: View {
                     }
                     .padding(12)
                 }
+                .scaleEffect(y: phase != .hidden ? 1 : 0.3, anchor: .center)
+                .transition(.opacity)
             case .processing:
                 overlayContent {
                     ProgressView()
                         .scaleEffect(1.2, anchor: .center)
                         .padding(12)
                 }
+                .scaleEffect(y: phase != .hidden ? 1 : 0.3, anchor: .center)
+                .transition(.opacity)
             case .success:
                 overlayContent {
                     Image(systemName: "checkmark.circle.fill")
@@ -36,6 +40,7 @@ struct RecordingOverlayView: View {
                         .foregroundColor(.green)
                         .padding(12)
                 }
+                .scaleEffect(y: phase != .hidden ? 1 : 0.3, anchor: .center)
                 .transition(.opacity)
             case .failure:
                 overlayContent {
@@ -44,9 +49,11 @@ struct RecordingOverlayView: View {
                         .foregroundColor(.orange)
                         .padding(12)
                 }
+                .scaleEffect(y: phase != .hidden ? 1 : 0.3, anchor: .center)
                 .transition(.opacity)
             }
         }
+        .animation(.spring(response: 0.5, dampingFraction: 0.65, blendDuration: 0), value: phase)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .position(x: 150, y: 35)
         .onChange(of: appState.state) { oldState, newState in
@@ -81,18 +88,24 @@ struct RecordingOverlayView: View {
     private func overlayContent<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
         content()
             .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.2, green: 0.7, blue: 0.8),  // Teal
-                        Color(red: 0.0, green: 0.2, blue: 0.5)   // Dark blue
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+                ZStack {
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 0.2, green: 0.7, blue: 0.8),
+                            Color(red: 0.0, green: 0.2, blue: 0.5)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .opacity(0.85)
+                    .blur(radius: 0.5)
+
+                    Color.white
+                        .opacity(0.1)
+                        .blur(radius: 2)
+                }
             )
-            .opacity(0.9)
             .cornerRadius(12)
-            .shadow(radius: 8)
             .padding(16)
     }
 }

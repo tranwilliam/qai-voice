@@ -9,12 +9,22 @@ struct VoiceApp: App {
         MenuBarExtra {
             MenuBarView(appState: delegate.appState)
         } label: {
-            Label(
-                "Voice — \(delegate.appState.state.title)",
-                systemImage: delegate.appState.state.symbolName
-            )
+            Text("QAI")
+                .fontWeight(.semibold)
+                .foregroundColor(stateColor(delegate.appState.state))
         }
         .menuBarExtraStyle(.menu)
+    }
+
+    private func stateColor(_ state: DictationState) -> Color {
+        switch state {
+        case .idle:
+            return .primary
+        case .requestingPermission, .stopping, .transcribing, .inserting:
+            return .blue
+        case .recording:
+            return .red
+        }
     }
 }
 

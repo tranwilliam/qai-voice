@@ -5,35 +5,93 @@ struct MenuBarView: View {
     let appState: AppState
 
     var body: some View {
-        Text("Voice")
-        Text(appState.state.title)
-
-        Divider()
-
-        switch appState.state {
-        case .idle:
-            Button("Start Dictation", systemImage: "mic") {
-                Task { await appState.startRecording() }
-            }
-        case .requestingPermission:
-            Button("Cancel") {
-                appState.cancelRecording()
-            }
-        case .recording:
-            Button("Stop Dictation", systemImage: "stop.fill") {
-                Task { await appState.stopRecording() }
-            }
-        case .stopping:
-            Text("Saving audio…")
-        case .transcribing:
-            Text("Transcribing…")
-        case .inserting:
-            Text("Inserting…")
-        }
-
-        if let error = appState.lastError {
+        VStack(alignment: .leading, spacing: 8) {
+            header
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             Divider()
+            stateSection
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+
+            if let error = appState.lastError {
+                Divider()
+                errorSection(error)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            if let transcript = appState.lastTranscript {
+                Divider()
+                transcriptSection(transcript)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            if let recording = appState.lastRecording {
+                Divider()
+                recordingSection(recording)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            Divider()
+            Button("Quit QAI") {
+                NSApplication.shared.terminate(nil)
+            }
+            .keyboardShortcut("q")
+        }
+        .padding(.vertical, 8)
+        .animation(.easeOut(duration: 0.2), value: appState.state)
+        .animation(.easeOut(duration: 0.2), value: appState.lastError)
+        .animation(.easeOut(duration: 0.2), value: appState.lastTranscript)
+        .animation(.easeOut(duration: 0.2), value: appState.lastRecording)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("QAI")
+                .font(.title3)
+                .fontWeight(.semibold)
+            Text(appState.state.title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+    }
+
+    private var stateSection: some View {
+        Group {
+
+            switch appState.state {
+            case .idle:
+                Button("Start Dictation") {
+                    Task { await appState.startRecording() }
+                }
+            case .requestingPermission:
+                Button("Cancel") {
+                    appState.cancelRecording()
+                }
+            case .recording:
+                Button("Stop Dictation") {
+                    Task { await appState.stopRecording() }
+                }
+            case .stopping:
+                Text("Saving audio…")
+                    .foregroundColor(.secondary)
+            case .transcribing:
+                Text("Transcribing…")
+                    .foregroundColor(.secondary)
+            case .inserting:
+                Text("Inserting…")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+
+    @ViewBuilder
+    private func errorSection(_ error: RecordingError) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             Text(error.localizedDescription)
+                .font(.caption)
+                .foregroundColor(.orange)
             if error == .permissionDenied {
                 Button("Open Microphone Settings…") {
                     if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
@@ -56,24 +114,40 @@ struct MenuBarView: View {
                 }
             }
         }
+        .padding(.horizontal, 8)
+    }
 
-        if let transcript = appState.lastTranscript {
-            Divider()
+    @ViewBuilder
+    private func transcriptSection(_ transcript: TranscriptionResult) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Transcript")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
             Text(transcript.rawText)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(3)
+                .truncationMode(.tail)
             if appState.state == .idle {
-                Button("Copy Transcript") {
-                    appState.copyTranscript()
-                }
-                Button("Insert Transcript") {
-                    Task { await appState.insertTranscript() }
+                HStack(spacing: 6) {
+                    Button("Copy") {
+                        appState.copyTranscript()
+                    }
+                    Button("Insert") {
+                        Task { await appState.insertTranscript() }
+                    }
                 }
             }
         }
+        .padding(.horizontal, 8)
+    }
 
-        if let recording = appState.lastRecording {
-            Divider()
+    @ViewBuilder
+    private func recordingSection(_ recording: CapturedRecording) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Captured \(recording.duration.formatted(.number.precision(.fractionLength(1)))) seconds")
+                .font(.caption)
+                .foregroundColor(.secondary)
             Button("Show Recording in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([recording.url])
             }
@@ -81,13 +155,9 @@ struct MenuBarView: View {
                 appState.deleteLastRecording()
             }
             Text("Cleared on next recording or quit")
+                .font(.caption2)
+                .foregroundColor(.secondary)
         }
-
-        Divider()
-
-        Button("Quit Voice") {
-            NSApplication.shared.terminate(nil)
-        }
-        .keyboardShortcut("q")
+        .padding(.horizontal, 8)
     }
 }
