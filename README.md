@@ -2,9 +2,9 @@
 
 A native macOS menu bar dictation app, built one milestone at a time from the MVP spec.
 
-## Current milestone: speech transcription
+## Current milestone: global hotkey
 
-The menu bar microphone opens a menu with Ready status, Start/Stop Dictation and Quit. Start Dictation requests microphone and on-device Speech Recognition access, then records local audio to a temporary `.caf` file. Stop Dictation ends the capture, transcribes it on-device, and shows the raw transcript alongside the recording's duration, with options to reveal the audio in Finder or delete it. The most recent recording and transcript are cleared automatically on the next recording or on quit. The global hotkey and text insertion are not implemented yet.
+The menu bar microphone opens a menu with Ready status, Start/Stop Dictation and Quit, exactly as before. Dictation can now also be toggled from anywhere on the Mac with **Option+Space**, without needing to open the menu or bring Voice to the foreground — the same recording, on-device transcription, and menu display apply regardless of how dictation was started. Text insertion is not implemented yet; the transcript is still only visible by reopening the menu.
 
 ## Requirements
 
@@ -25,21 +25,20 @@ open build/Build/Products/Debug/Voice.app
 
 The application lives in the menu bar, without a main window or Dock icon. The project uses local ad-hoc signing and disables App Sandbox for the planned Accessibility integration. Hardened runtime is enabled in project settings, but Xcode disables it for this ad-hoc build. The app is not configured for distribution or notarization.
 
-## Milestone 3 acceptance checks
+## Milestone 4 acceptance checks
 
-1. Launch the app and locate the microphone in the menu bar.
-2. Choose Start Dictation: on first use, macOS prompts for microphone access, then for Speech Recognition access. Grant both.
-3. Confirm the icon becomes a stop circle and the menu shows Recording. Speak a short sentence.
-4. Choose Stop Dictation: the menu shows Transcribing…, then the recognized text under "Transcript", plus the captured duration with Show Recording in Finder and Delete Recording options.
-5. Start a new recording: confirm the previous recording and transcript are both cleared.
-6. Deny Speech Recognition access (or revoke it in System Settings) and choose Start Dictation: confirm the menu shows the permission error with a link to Speech Recognition settings, and no recorder starts.
-7. Record silence (or a very short sound) and stop: confirm the menu shows "No speech was recognized in that recording" and the audio recording is still available via Show Recording in Finder.
-8. Choose Quit Voice while a recording and transcript exist: relaunch and confirm no leftover recording file remains.
+1. Launch the app and open another application (e.g. Notes or TextEdit) so it has focus instead of Voice.
+2. Press Option+Space: confirm the menu bar icon changes to a stop circle, without needing to click the menu first.
+3. Speak a short sentence, then press Option+Space again: confirm the icon briefly shows the transcribing state, then returns to the microphone icon.
+4. Open the Voice menu: confirm the Transcript section shows your recognized text and the recording duration, exactly as in Milestone 3.
+5. Press Option+Space twice in quick succession right after starting a recording, before speaking: confirm this never starts a second overlapping recording, crashes, or hangs.
+6. With another application focused, press Option+Space to start recording, then use the menu's Stop Dictation button instead of the hotkey to stop it: confirm both control paths operate on the same underlying state.
+7. Quit Voice from the menu, then press Option+Space again: confirm nothing happens (no orphaned hotkey registration after quitting).
 
-`VoiceAppTests` covers the `AppState` recording and transcription state machine (permission handling for both microphone and Speech Recognition, cancellation, duplicate starts, empty/failed recordings, transcription failure and no-speech-detected handling, startup cleanup of abandoned files) against fake recorder and transcriber doubles. Run it from Xcode (`Cmd+U`) or:
+`VoiceAppTests` covers `AppState.toggleDictation()` (starting from idle, stopping and transcribing from recording, and no-op protection while transcribing) in addition to the Milestone 2 and 3 coverage. Run it from Xcode (`Cmd+U`) or:
 
 ```sh
 xcodebuild -project VoiceApp.xcodeproj -scheme VoiceApp -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath build test
 ```
 
-Live microphone capture, on-device recognition accuracy, and the menu UI still need manual verification per the acceptance checks above, since they depend on system permission prompts and real speech.
+The global hotkey itself is not unit tested — registering and receiving a real system-wide key event needs a live app and a real keypress, so it's verified manually per the acceptance checks above, alongside live microphone capture and on-device recognition accuracy.

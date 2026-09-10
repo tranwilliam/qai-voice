@@ -21,8 +21,16 @@ struct VoiceApp: App {
 @MainActor
 final class VoiceAppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
+    private let hotkey = GlobalHotkeyMonitor()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        hotkey.start { [weak appState] in
+            appState?.toggleDictation()
+        }
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
+        hotkey.stop()
         appState.shutdown()
     }
 }
