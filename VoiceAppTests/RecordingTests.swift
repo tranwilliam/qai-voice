@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class RecordingTests: XCTestCase {
     func testDeniedPermissionNeverStartsCaptureAndAllowsRetry() async throws {
-        let (app, recorder, directory) = try fixture()
+        let (app, recorder, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.permissionGranted = false
 
@@ -20,8 +20,25 @@ final class RecordingTests: XCTestCase {
         app.shutdown()
     }
 
+    func testDeniedSpeechPermissionNeverStartsCaptureAndAllowsRetry() async throws {
+        let (app, recorder, transcriber, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.authorizationGranted = false
+
+        await app.startRecording()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastError, .speechPermissionDenied)
+        XCTAssertEqual(recorder.startCount, 0)
+        transcriber.authorizationGranted = true
+        await app.startRecording()
+        XCTAssertEqual(app.state, .recording)
+        XCTAssertNil(app.lastError)
+        app.shutdown()
+    }
+
     func testDuplicateStartsDoNotCreateAnotherPermissionRequestOrRecorder() async throws {
-        let (app, recorder, directory) = try fixture()
+        let (app, recorder, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.pausePermission = true
         let first = Task { await app.startRecording() }
@@ -40,7 +57,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testCancellingPendingPermissionPreventsLateCapture() async throws {
-        let (app, recorder, directory) = try fixture()
+        let (app, recorder, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.pausePermission = true
         let start = Task { await app.startRecording() }
@@ -56,7 +73,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testStartFailureCleansPartialFileAndAllowsAnotherSession() async throws {
-        let (app, recorder, directory) = try fixture()
+        let (app, recorder, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.startError = .cannotStart
         await app.startRecording()
@@ -66,26 +83,30 @@ final class RecordingTests: XCTestCase {
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
         recorder.startError = nil
         await app.startRecording()
-        app.stopRecording()
+        await app.stopRecording()
         XCTAssertNotNil(app.lastRecording)
         app.shutdown()
     }
 
-    func testSuccessfulStopProducesReadableAudioAndNextSessionReplacesIt() async throws {
-        let (app, _, directory) = try fixture()
+    func testSuccessfulStopProducesReadableAudioTranscriptAndNextSessionReplacesBoth() async throws {
+        let (app, _, transcriber, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.resultText = "hello world"
         await app.startRecording()
-        app.stopRecording()
+        await app.stopRecording()
 
         let first = try XCTUnwrap(app.lastRecording)
         XCTAssertEqual(app.state, .idle)
         XCTAssertEqual(first.duration, 0.1, accuracy: 0.001)
         XCTAssertEqual(try AVAudioFile(forReading: first.url).length, 1600)
+        XCTAssertEqual(app.lastTranscript?.rawText, "hello world")
+        XCTAssertEqual(transcriber.transcribeCallCount, 1)
 
         await app.startRecording()
         XCTAssertFalse(FileManager.default.fileExists(atPath: first.url.path))
         XCTAssertNil(app.lastRecording)
-        app.stopRecording()
+        XCTAssertNil(app.lastTranscript)
+        await app.stopRecording()
         let second = try XCTUnwrap(app.lastRecording)
         XCTAssertNotEqual(first.url, second.url)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 1)
@@ -94,11 +115,11 @@ final class RecordingTests: XCTestCase {
     }
 
     func testStopFailureReturnsToReadyAndRemovesAudio() async throws {
-        let (app, recorder, directory) = try fixture()
+        let (app, recorder, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         await app.startRecording()
         recorder.stopError = .recordingFailed
-        app.stopRecording()
+        await app.stopRecording()
 
         XCTAssertEqual(app.state, .idle)
         XCTAssertEqual(app.lastError, .recordingFailed)
@@ -107,7 +128,7 @@ final class RecordingTests: XCTestCase {
     }
 
     func testUnexpectedRecorderFailureReturnsToReadyAndCanRestart() async throws {
-        let (app, recorder, directory) = try fixture()
+        let (app, recorder, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         await app.startRecording()
         recorder.onFailure?(.recordingFailed)
@@ -121,11 +142,11 @@ final class RecordingTests: XCTestCase {
     }
 
     func testEmptyRecordingIsRejectedAndDeleted() async throws {
-        let (app, recorder, directory) = try fixture()
+        let (app, recorder, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         recorder.frameCount = 0
         await app.startRecording()
-        app.stopRecording()
+        await app.stopRecording()
 
         XCTAssertEqual(app.state, .idle)
         XCTAssertEqual(app.lastError, .emptyRecording)
@@ -133,8 +154,37 @@ final class RecordingTests: XCTestCase {
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: directory.path).isEmpty)
     }
 
+    func testTranscriptionFailureKeepsRecordingAndReturnsToReady() async throws {
+        let (app, _, transcriber, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.transcribeError = .transcriptionFailed
+        await app.startRecording()
+        await app.stopRecording()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastError, .transcriptionFailed)
+        XCTAssertNotNil(app.lastRecording)
+        XCTAssertNil(app.lastTranscript)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: app.lastRecording!.url.path))
+        app.shutdown()
+    }
+
+    func testNoSpeechDetectedKeepsRecordingAndReturnsToReady() async throws {
+        let (app, _, transcriber, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.transcribeError = .noSpeechDetected
+        await app.startRecording()
+        await app.stopRecording()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastError, .noSpeechDetected)
+        XCTAssertNotNil(app.lastRecording)
+        XCTAssertNil(app.lastTranscript)
+        app.shutdown()
+    }
+
     func testShutdownDuringRecordingStopsCaptureAndRemovesAudio() async throws {
-        let (app, recorder, directory) = try fixture()
+        let (app, recorder, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         await app.startRecording()
         app.shutdown()
@@ -145,10 +195,10 @@ final class RecordingTests: XCTestCase {
     }
 
     func testDeleteLastRecordingClearsFileAndMenuResult() async throws {
-        let (app, _, directory) = try fixture()
+        let (app, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         await app.startRecording()
-        app.stopRecording()
+        await app.stopRecording()
         let recording = try XCTUnwrap(app.lastRecording)
         app.deleteLastRecording()
 
@@ -173,11 +223,12 @@ final class RecordingTests: XCTestCase {
         XCTAssertNil(app.lastError)
     }
 
-    private func fixture() throws -> (AppState, TestRecorder, URL) {
+    private func fixture() throws -> (AppState, TestRecorder, FakeTranscriber, URL) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let recorder = TestRecorder()
-        let app = AppState(recorder: recorder, files: RecordingFiles(directory: directory))
-        return (app, recorder, directory)
+        let transcriber = FakeTranscriber()
+        let app = AppState(recorder: recorder, files: RecordingFiles(directory: directory), transcriber: transcriber)
+        return (app, recorder, transcriber, directory)
     }
 
     private func waitForPermission(_ recorder: TestRecorder) async {
@@ -238,5 +289,23 @@ private final class TestRecorder: AudioRecording {
 
     func cancelRecording() {
         isRecording = false
+    }
+}
+
+@MainActor
+private final class FakeTranscriber: SpeechTranscribing {
+    var authorizationGranted = true
+    var transcribeError: RecordingError?
+    var resultText = "hello world"
+    var transcribeCallCount = 0
+
+    func requestAuthorization() async -> Bool {
+        authorizationGranted
+    }
+
+    func transcribe(fileAt url: URL, duration: TimeInterval) async throws -> TranscriptionResult {
+        transcribeCallCount += 1
+        if let transcribeError { throw transcribeError }
+        return TranscriptionResult(rawText: resultText, segments: [], duration: duration)
     }
 }

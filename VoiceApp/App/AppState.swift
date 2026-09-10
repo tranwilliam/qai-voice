@@ -7,17 +7,24 @@ import OSLog
 final class AppState {
     private(set) var state: DictationState = .idle
     private(set) var lastRecording: CapturedRecording?
+    private(set) var lastTranscript: TranscriptionResult?
     private(set) var lastError: RecordingError?
 
     private let recorder: any AudioRecording
+    private let transcriber: any SpeechTranscribing
     private let files: RecordingFiles
     private var pendingURL: URL?
     private var attempt: UUID?
     private let logger = Logger(subsystem: "com.williamt.voiceapp", category: "Recording")
 
-    init(recorder: any AudioRecording = AudioRecordingService(), files: RecordingFiles = RecordingFiles()) {
+    init(
+        recorder: any AudioRecording = AudioRecordingService(),
+        files: RecordingFiles = RecordingFiles(),
+        transcriber: any SpeechTranscribing = AppleSpeechTranscriptionService()
+    ) {
         self.recorder = recorder
         self.files = files
+        self.transcriber = transcriber
         do {
             try files.prepare()
         } catch {
@@ -33,12 +40,21 @@ final class AppState {
         guard state == .idle else { return }
         state = .requestingPermission
         lastError = nil
+        lastTranscript = nil
         let currentAttempt = UUID()
         attempt = currentAttempt
-        let granted = await recorder.requestPermission()
+
+        let micGranted = await recorder.requestPermission()
         guard attempt == currentAttempt, state == .requestingPermission else { return }
-        guard granted else {
+        guard micGranted else {
             fail(.permissionDenied)
+            return
+        }
+
+        let speechGranted = await transcriber.requestAuthorization()
+        guard attempt == currentAttempt, state == .requestingPermission else { return }
+        guard speechGranted else {
+            fail(.speechPermissionDenied)
             return
         }
 
@@ -60,20 +76,37 @@ final class AppState {
         }
     }
 
-    func stopRecording() {
+    func stopRecording() async {
         guard state == .recording else { return }
         state = .stopping
+        let result: CapturedRecording
         do {
             try recorder.stopRecording()
             guard let pendingURL else { throw RecordingError.recordingFailed }
-            let result = try files.finish(pendingURL)
+            result = try files.finish(pendingURL)
             lastRecording = result
             self.pendingURL = nil
             attempt = nil
-            state = .idle
             logger.info("Audio recording completed: \(result.duration, privacy: .public) seconds")
         } catch {
             fail(error as? RecordingError ?? .recordingFailed)
+            return
+        }
+
+        state = .transcribing
+        do {
+            let transcript = try await transcriber.transcribe(fileAt: result.url, duration: result.duration)
+            // If shutdown/cancel ran while we were awaiting, don't resurrect stale results.
+            guard state == .transcribing else { return }
+            lastTranscript = transcript
+            state = .idle
+            logger.info("Transcription completed: \(transcript.rawText.count, privacy: .public) characters")
+        } catch {
+            guard state == .transcribing else { return }
+            let transcriptionError = error as? RecordingError ?? .transcriptionFailed
+            lastError = transcriptionError
+            state = .idle
+            logger.error("Transcription failed: \(transcriptionError.localizedDescription, privacy: .public)")
         }
     }
 
