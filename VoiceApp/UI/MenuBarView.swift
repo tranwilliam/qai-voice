@@ -27,6 +27,8 @@ struct MenuBarView: View {
             Text("Saving audio…")
         case .transcribing:
             Text("Transcribing…")
+        case .inserting:
+            Text("Inserting…")
         }
 
         if let error = appState.lastError {

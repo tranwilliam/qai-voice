@@ -14,6 +14,8 @@ enum RecordingError: Error, LocalizedError {
     case speechPermissionDenied
     case noSpeechDetected
     case transcriptionFailed
+    case accessibilityPermissionDenied
+    case insertionFailed
 
     var errorDescription: String? {
         switch self {
@@ -25,7 +27,8 @@ enum RecordingError: Error, LocalizedError {
         case .speechPermissionDenied: "Speech recognition access is off. Enable Voice in Speech Recognition settings."
         case .noSpeechDetected: "No speech was recognized in that recording."
         case .transcriptionFailed: "Could not transcribe the recording. Try again."
+        case .accessibilityPermissionDenied: "Accessibility access is off. Enable Voice in Accessibility settings to insert text."
+        case .insertionFailed: "Could not insert text into the focused app. The transcript is still available above."
         }
     }
 }
-

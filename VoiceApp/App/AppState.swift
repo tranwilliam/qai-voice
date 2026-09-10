@@ -118,7 +118,7 @@ final class AppState {
                 await startRecording()
             case .recording:
                 await stopRecording()
-            case .requestingPermission, .stopping, .transcribing:
+            case .requestingPermission, .stopping, .transcribing, .inserting:
                 break
             }
         }
