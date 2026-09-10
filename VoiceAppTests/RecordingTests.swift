@@ -51,6 +51,53 @@ final class RecordingTests: XCTestCase {
         let terms = TechnicalVocabulary.terms
         XCTAssertGreaterThanOrEqual(terms.count, 200, "Vocabulary should include at least 200+ terms for comprehensive coverage")
     }
+
+    func testOverlayPhaseIdleToRecording() {
+        let phase = overlayPhase(previous: .idle, current: .recording, lastError: nil)
+        XCTAssertEqual(phase, .recording)
+    }
+
+    func testOverlayPhaseRecordingToTranscribing() {
+        let phase = overlayPhase(previous: .recording, current: .transcribing, lastError: nil)
+        XCTAssertEqual(phase, .processing(label: DictationState.transcribing.title))
+    }
+
+    func testOverlayPhaseInsertingToIdleSuccess() {
+        let phase = overlayPhase(previous: .inserting, current: .idle, lastError: nil)
+        XCTAssertEqual(phase, .success)
+    }
+
+    func testOverlayPhaseInsertingToIdleFailure() {
+        let phase = overlayPhase(previous: .inserting, current: .idle, lastError: .insertionFailed)
+        if case .failure(let message) = phase {
+            XCTAssertFalse(message.isEmpty, "Failure message should not be empty")
+        } else {
+            XCTFail("Expected failure phase")
+        }
+    }
+
+    func testOverlayPhaseRecordingToIdleCancel() {
+        let phase = overlayPhase(previous: .recording, current: .idle, lastError: nil)
+        XCTAssertEqual(phase, .hidden)
+    }
+
+    func testOverlayPhaseTranscribingToIdleError() {
+        let phase = overlayPhase(previous: .transcribing, current: .idle, lastError: .transcriptionFailed)
+        if case .failure(let message) = phase {
+            XCTAssertTrue(message.contains("transcrib"), "Failure message should mention transcription")
+        } else {
+            XCTFail("Expected failure phase")
+        }
+    }
+
+    func testOverlayPhaseRequestingPermissionToIdleDenied() {
+        let phase = overlayPhase(previous: .requestingPermission, current: .idle, lastError: .permissionDenied)
+        if case .failure(let message) = phase {
+            XCTAssertTrue(message.contains("Microphone"), "Failure message should mention microphone")
+        } else {
+            XCTFail("Expected failure phase")
+        }
+    }
     func testSpeechAssemblerUsesFinalSegmentsInsteadOfPartialDuplicates() {
         var assembler = SpeechTranscriptAssembler()
 

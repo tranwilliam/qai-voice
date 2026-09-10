@@ -5,6 +5,32 @@ struct CapturedRecording: Equatable {
     let duration: TimeInterval
 }
 
+enum OverlayPhase: Equatable {
+    case hidden
+    case recording
+    case processing(label: String)
+    case success
+    case failure(message: String)
+}
+
+func overlayPhase(previous: DictationState, current: DictationState, lastError: RecordingError?) -> OverlayPhase {
+    switch current {
+    case .recording:
+        return .recording
+    case .requestingPermission, .stopping, .transcribing, .inserting:
+        return .processing(label: current.title)
+    case .idle:
+        switch previous {
+        case .inserting:
+            return lastError.map { .failure(message: $0.localizedDescription) } ?? .success
+        case .idle:
+            return .hidden
+        default:
+            return lastError.map { .failure(message: $0.localizedDescription) } ?? .hidden
+        }
+    }
+}
+
 enum RecordingError: Error, LocalizedError {
     case permissionDenied
     case cannotStart

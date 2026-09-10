@@ -22,11 +22,13 @@ struct VoiceApp: App {
 final class VoiceAppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     private let hotkey = GlobalHotkeyMonitor()
+    private var overlayController: RecordingOverlayController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         hotkey.start { [weak appState] in
             appState?.toggleDictation()
         }
+        overlayController = RecordingOverlayController(appState: appState)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

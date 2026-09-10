@@ -32,17 +32,21 @@ Acceptance criteria:
 - After focusing a text field, Insert Transcript pastes the saved transcript once.
 - The user’s previous clipboard contents are restored after insertion where practical.
 
-## P1 — Recording status overlay
+## ✅ P1 — Recording status overlay
 
-Add a compact, click-through, non-activating overlay on the active display.
+Visual feedback overlay for recording/transcribing/success/failure states.
 
-- Position: top center, below the menu bar, so it remains visible without covering the Terminal prompt.
-- Recording state: microphone icon, animated waveform bars, and “Listening”.
-- Transcribing state: subtle spinner and “Transcribing”.
-- Success state: brief checkmark, then fade out.
-- Failure state: warning icon and “Transcript saved — insertion failed”.
-- Never steal keyboard focus from Terminal or the receiving app.
-- Support multiple monitors and macOS Reduce Motion.
+**What shipped:**
+- Non-intrusive borderless NSPanel positioned top-center below menu bar
+- Click-through, non-activating window (never steals focus)
+- Multi-monitor support (positions on current screen)
+- Recording state: microphone icon + animated waveform bars + “Listening”
+- Processing state: spinner + dynamic label (“Transcribing…”, “Inserting…”)
+- Success state: green checkmark, auto-fades after 1.5s
+- Failure state: warning icon + existing error text, auto-fades after 2.5s
+- Respects macOS Reduce Motion (disables animations when enabled)
+- Pure `overlayPhase()` logic with 7 unit tests
+- All 48 tests pass (41 existing + 7 new)
 
 ## ✅ P2 — Default developer vocabulary pack
 
@@ -80,7 +84,7 @@ DOM, BDD, Gherkin, Given When Then, Arrange Act Assert
 
 ```text
 Playwright, Selenium, Cypress, Appium, Postman, Newman, Swagger, Jest,
-Vitest, pytest, JUnit, TestNG, Cucumber, Allure, BrowserStack,
+Vitest, pytest, JUnit, Cucumber, Allure, BrowserStack,
 Sauce Labs,
 Git, GitHub, GitLab, Bitbucket, pull request, merge request, commit,
 branch, rebase, cherry-pick, CI/CD, GitHub Actions, Jenkins, CircleCI,

@@ -23,7 +23,7 @@ enum TechnicalVocabulary {
     // QA and developer tools
     static let qaAndDeveloperTools = [
         "Playwright", "Selenium", "Cypress", "Appium", "Postman", "Newman", "Swagger", "Jest",
-        "Vitest", "pytest", "JUnit", "TestNG", "Cucumber", "Allure", "BrowserStack",
+        "Vitest", "pytest", "JUnit", "Cucumber", "Allure", "BrowserStack",
         "Sauce Labs",
         "Git", "GitHub", "GitLab", "Bitbucket", "pull request", "merge request", "commit",
         "branch", "rebase", "cherry-pick", "CI/CD", "GitHub Actions", "Jenkins", "CircleCI",
