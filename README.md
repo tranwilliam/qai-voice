@@ -4,7 +4,7 @@ A native macOS menu bar dictation app, built one milestone at a time from the MV
 
 ## Current milestone: global hotkey
 
-The menu bar microphone opens a menu with Ready status, Start/Stop Dictation and Quit, exactly as before. Dictation can now also be toggled from anywhere on the Mac with **Option+Space**, without needing to open the menu or bring Voice to the foreground — the same recording, on-device transcription, and menu display apply regardless of how dictation was started. Text insertion is not implemented yet; the transcript is still only visible by reopening the menu.
+The menu bar microphone opens a menu with Ready status, Start/Stop Dictation and Quit, exactly as before. Dictation can now also be toggled from anywhere on the Mac with **Option+Space**, without needing to open the menu or bring Voice to the foreground — the same recording, on-device transcription, and menu display apply regardless of how dictation was started. While Voice is running, Option+Space is captured system-wide and is no longer available for typing a non-breaking space in other applications. Text insertion is not implemented yet; the transcript is still only visible by reopening the menu.
 
 ## Requirements
 
