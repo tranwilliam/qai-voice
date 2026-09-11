@@ -180,14 +180,20 @@ Acceptance criteria:
 
 **What shipped:**
 - Retain the last 20 transcripts (session-only; cleared on quit).
-- Each history entry keeps its own audio file copy, independent of `lastRecording` lifecycle.
-- Menu bar history section shows most-recent-first list with text preview + relative timestamp.
-- Copy, Insert (to focused app), and Delete actions per entry.
-- Clear History button to empty the list and delete all associated audio files.
+- Cascading menu submenu showing history entries (truncated text, click to copy).
+- Copy action via menu (no separate Insert/Delete buttons in menu yet).
 - Pure `prependingHistoryEntry()` function with automatic FIFO eviction of oldest entries.
-- New `RecordingFiles.duplicate()` helper to safely copy audio while preserving independent deletion.
-- All 56 tests pass (existing tests adapted for the new file-count behavior, no new test failures).
-- History clears on `shutdown()`, consistent with session-only design and temporary recording behavior.
+- All 58 tests pass.
+- History clears on `shutdown()`, consistent with session-only design.
+
+**Known issue — File preservation across multiple recordings:**
+- Multiple dictations do not create separate audio files as expected.
+- Expected: dictate N times → N separate .caf files (one per recording)
+- Actual: only 1–2 files created; all contain identical audio (most recent)
+- Root cause: `RecordingFiles.prepare()` cleanup logic still deletes history entry files despite preservation attempt.
+- Impact: History entries exist in menu but may reference deleted or phantom files.
+- **Workaround for now:** Don't rely on history audio playback; use history for copy-to-clipboard only.
+- **Future fix:** Simplify cleanup strategy (e.g., only clean on app shutdown, not per-recording) or use reference counting to track which files are in active use.
 
 ## P4 — Terminal-aware formatting
 
