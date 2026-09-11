@@ -9,15 +9,18 @@ struct RecordingFiles {
         self.directory = directory
     }
 
-    func prepare() throws {
+    func prepare(preserveURLs: Set<URL> = []) throws {
         try FileManager.default.createDirectory(
             at: directory,
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
         // Only remove files owned by this app, including abandoned partial files.
+        // Preserve any files in history (passed via preserveURLs).
         for url in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
-            if owns(url) { try remove(url) }
+            if owns(url) && !preserveURLs.contains(url) {
+                try remove(url)
+            }
         }
     }
 
