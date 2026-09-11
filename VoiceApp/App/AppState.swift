@@ -9,6 +9,7 @@ final class AppState {
     private(set) var lastRecording: CapturedRecording?
     private(set) var lastTranscript: TranscriptionResult?
     private(set) var lastError: RecordingError?
+    private(set) var audioLevel: Double = 0
 
     private let recorder: any AudioRecording
     private let transcriber: any SpeechTranscribing
@@ -37,6 +38,10 @@ final class AppState {
             guard let self, self.state == .recording else { return }
             self.fail(error)
         }
+        recorder.onLevel = { [weak self] level in
+            guard let self, self.state == .recording else { return }
+            self.audioLevel = smoothedMicrophoneLevel(previous: self.audioLevel, input: level)
+        }
     }
 
     func startRecording() async {
@@ -44,6 +49,7 @@ final class AppState {
         state = .requestingPermission
         lastError = nil
         lastTranscript = nil
+        audioLevel = 0
         let currentAttempt = UUID()
         attempt = currentAttempt
 
@@ -82,6 +88,7 @@ final class AppState {
     func stopRecording() async {
         guard state == .recording else { return }
         state = .stopping
+        audioLevel = 0
         let result: CapturedRecording
         do {
             try recorder.stopRecording()
@@ -136,6 +143,7 @@ final class AppState {
 
     func cancelRecording() {
         attempt = nil
+        audioLevel = 0
         recorder.cancelRecording()
         removePendingRecording()
         state = .idle
@@ -194,6 +202,7 @@ final class AppState {
     private func fail(_ error: RecordingError) {
         lastError = error
         attempt = nil
+        audioLevel = 0
         recorder.cancelRecording()
         removePendingRecording()
         state = .idle

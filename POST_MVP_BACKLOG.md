@@ -6,6 +6,7 @@ This file is the source of truth for work after the v0.1 dictation loop. Work on
 
 - [x] **P0 — Transcript recovery:** copy and reinsert a transcript after the original focused app has no text field.
 - [x] **P1 — Recording status overlay:** show a clear, non-focus-stealing animation while recording and transcribing.
+- [x] **P1b — Audio-reactive microphone opacity:** brighten the overlay microphone from the live input level and dim it during silence.
 - [x] **P2 — Default developer vocabulary pack:** add QA, IT, cloud, security, and AI terms as recognition hints and safe corrections.
 - [ ] **P2b — Pause-based continuous insertion:** detect silence during recording and auto-insert sections without stopping, then press hotkey to end session.
 - [ ] **P3 — Recent transcript history:** retain the last 10–20 transcripts for copy, reinsert, delete, and clear actions.
@@ -48,6 +49,18 @@ Visual feedback overlay for recording/transcribing/success/failure states.
 - Respects macOS Reduce Motion (disables animations when enabled)
 - Pure `overlayPhase()` logic with 7 unit tests
 - All 48 tests pass (41 existing + 7 new)
+
+## ✅ P1b — Audio-reactive microphone opacity
+
+**What shipped:**
+
+- `AVAudioRecorder` microphone metering updates the app at approximately 30 Hz.
+- The microphone icon stays at 30% opacity during silence and brightens proportionally to full opacity as input increases.
+- A faster attack and slower release make speech feel responsive without flickering.
+- Meter updates are ignored and the level resets after recording stops or is cancelled.
+- The existing microphone size and overlay layout remain unchanged.
+- Four focused unit tests cover decibel normalization, opacity mapping, smoothing, and recording-state behavior.
+- All 52 tests pass.
 
 ## ✅ P2 — Default developer vocabulary pack
 

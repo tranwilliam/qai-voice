@@ -13,6 +13,59 @@ enum OverlayPhase: Equatable {
     case failure(message: String)
 }
 
+struct OverlayMotionState: Equatable {
+    let horizontalScale: CGFloat
+    let verticalScale: CGFloat
+    let opacity: Double
+    let blurRadius: CGFloat
+}
+
+func overlayMotionState(isVisible: Bool, reduceMotion: Bool) -> OverlayMotionState {
+    if reduceMotion {
+        return OverlayMotionState(
+            horizontalScale: 1,
+            verticalScale: 1,
+            opacity: isVisible ? 1 : 0,
+            blurRadius: 0
+        )
+    }
+
+    return OverlayMotionState(
+        horizontalScale: isVisible ? 1 : 0.34,
+        verticalScale: isVisible ? 1 : 0.78,
+        opacity: isVisible ? 1 : 0,
+        blurRadius: isVisible ? 0 : 7
+    )
+}
+
+func microphoneOpacity(audioLevel: Double) -> Double {
+    let boundedLevel = min(max(audioLevel, 0), 1)
+    return 0.3 + (boundedLevel * 0.7)
+}
+
+func waveformBarScales(recentLevels: [Double]) -> [CGFloat] {
+    let quietScales: [CGFloat] = Array(repeating: 0.16, count: 5)
+    let loudScales: [CGFloat] = [0.6, 0.82, 1, 0.76, 0.56]
+    let sampleOrder = [4, 2, 0, 1, 3]
+    let paddedLevels = Array((recentLevels + Array(repeating: 0, count: 5)).prefix(5))
+
+    return sampleOrder.indices.map { barIndex in
+        let level = CGFloat(min(max(paddedLevels[sampleOrder[barIndex]], 0), 1))
+        let shapedLevel = pow(level, 0.72)
+        let quiet = quietScales[barIndex]
+        return quiet + ((loudScales[barIndex] - quiet) * shapedLevel)
+    }
+}
+
+func recordingOverlayPanelFrame(in visibleFrame: CGRect) -> CGRect {
+    let panelWidth: CGFloat = 300
+    let panelHeight: CGFloat = 110
+    let topMargin: CGFloat = 30
+    let x = (visibleFrame.midX - panelWidth / 2).rounded()
+    let y = (visibleFrame.maxY - topMargin - panelHeight).rounded()
+    return CGRect(x: x, y: y, width: panelWidth, height: panelHeight)
+}
+
 func overlayPhase(previous: DictationState, current: DictationState, lastError: RecordingError?) -> OverlayPhase {
     switch current {
     case .recording:
@@ -22,7 +75,7 @@ func overlayPhase(previous: DictationState, current: DictationState, lastError: 
     case .idle:
         switch previous {
         case .inserting:
-            return lastError.map { .failure(message: $0.localizedDescription) } ?? .hidden
+            return lastError.map { .failure(message: $0.localizedDescription) } ?? .success
         case .idle:
             return .hidden
         default:

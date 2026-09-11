@@ -64,7 +64,7 @@ final class RecordingTests: XCTestCase {
 
     func testOverlayPhaseInsertingToIdleSuccess() {
         let phase = overlayPhase(previous: .inserting, current: .idle, lastError: nil)
-        XCTAssertEqual(phase, .hidden)
+        XCTAssertEqual(phase, .success)
     }
 
     func testOverlayPhaseInsertingToIdleFailure() {
@@ -98,6 +98,88 @@ final class RecordingTests: XCTestCase {
             XCTFail("Expected failure phase")
         }
     }
+
+    func testRecordingOverlayFrameFitsContentBelowMenuBar() {
+        let visibleFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
+
+        let frame = recordingOverlayPanelFrame(in: visibleFrame)
+
+        XCTAssertEqual(frame.midX, visibleFrame.midX, accuracy: 0.001)
+        XCTAssertEqual(frame.maxY, visibleFrame.maxY - 30, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(frame.height, 104)
+    }
+
+    func testOverlayMotionExpandsFromCompactCapsuleAndContractsWhenHidden() {
+        let hidden = overlayMotionState(isVisible: false, reduceMotion: false)
+        let visible = overlayMotionState(isVisible: true, reduceMotion: false)
+
+        XCTAssertLessThan(hidden.horizontalScale, visible.horizontalScale)
+        XCTAssertLessThan(hidden.verticalScale, visible.verticalScale)
+        XCTAssertGreaterThan(hidden.blurRadius, visible.blurRadius)
+        XCTAssertEqual(hidden.opacity, 0, accuracy: 0.001)
+        XCTAssertEqual(visible.opacity, 1, accuracy: 0.001)
+    }
+
+    func testOverlayMotionUsesFadeWithoutSpatialMovementWhenMotionIsReduced() {
+        let hidden = overlayMotionState(isVisible: false, reduceMotion: true)
+        let visible = overlayMotionState(isVisible: true, reduceMotion: true)
+
+        XCTAssertEqual(hidden.horizontalScale, 1, accuracy: 0.001)
+        XCTAssertEqual(hidden.verticalScale, 1, accuracy: 0.001)
+        XCTAssertEqual(hidden.blurRadius, 0, accuracy: 0.001)
+        XCTAssertEqual(hidden.opacity, 0, accuracy: 0.001)
+        XCTAssertEqual(visible, OverlayMotionState(horizontalScale: 1, verticalScale: 1, opacity: 1, blurRadius: 0))
+    }
+
+    func testMicrophoneOpacityMapsSilenceToDimAndFullInputToBright() {
+        XCTAssertEqual(microphoneOpacity(audioLevel: 0), 0.3, accuracy: 0.001)
+        XCTAssertEqual(microphoneOpacity(audioLevel: 0.5), 0.65, accuracy: 0.001)
+        XCTAssertEqual(microphoneOpacity(audioLevel: 1), 1, accuracy: 0.001)
+        XCTAssertEqual(microphoneOpacity(audioLevel: -1), 0.3, accuracy: 0.001)
+        XCTAssertEqual(microphoneOpacity(audioLevel: 2), 1, accuracy: 0.001)
+    }
+
+    func testWaveformUsesCurrentSoundInCenterAndFlowsEarlierSoundToTheSides() {
+        let silence = waveformBarScales(recentLevels: [0, 0, 0, 0, 0])
+        let newSound = waveformBarScales(recentLevels: [1, 0, 0, 0, 0])
+        let previousSound = waveformBarScales(recentLevels: [0, 1, 0, 0, 0])
+
+        XCTAssertTrue(silence.allSatisfy { abs($0 - silence[0]) < 0.001 })
+        XCTAssertLessThan(silence[0], 0.3)
+        XCTAssertEqual(newSound[2], 1, accuracy: 0.001)
+        XCTAssertTrue(newSound.enumerated().allSatisfy { index, scale in index == 2 || scale < 0.3 })
+        XCTAssertGreaterThan(previousSound[3], previousSound[2])
+        XCTAssertGreaterThan(previousSound[3], previousSound[1])
+    }
+
+    func testMicrophoneLevelBrightensFasterThanItFades() {
+        XCTAssertEqual(smoothedMicrophoneLevel(previous: 0, input: 1), 0.6, accuracy: 0.001)
+        XCTAssertEqual(smoothedMicrophoneLevel(previous: 1, input: 0), 0.55, accuracy: 0.001)
+    }
+
+    func testMicrophoneDecibelsMapIntoUsableLevelRange() {
+        XCTAssertEqual(normalizedMicrophoneLevel(decibels: -60), 0, accuracy: 0.001)
+        XCTAssertEqual(normalizedMicrophoneLevel(decibels: -32.5), 0.5, accuracy: 0.001)
+        XCTAssertEqual(normalizedMicrophoneLevel(decibels: -10), 1, accuracy: 0.001)
+        XCTAssertEqual(normalizedMicrophoneLevel(decibels: 4), 1, accuracy: 0.001)
+    }
+
+    func testRecorderLevelUpdatesOnlyWhileRecording() async throws {
+        let (app, recorder, _, _, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        await app.startRecording()
+        recorder.emitLevel(1)
+
+        XCTAssertEqual(app.audioLevel, 0.6, accuracy: 0.001)
+
+        app.cancelRecording()
+        XCTAssertEqual(app.audioLevel, 0, accuracy: 0.001)
+
+        recorder.emitLevel(1)
+        XCTAssertEqual(app.audioLevel, 0, accuracy: 0.001)
+    }
+
     func testSpeechAssemblerUsesFinalSegmentsInsteadOfPartialDuplicates() {
         var assembler = SpeechTranscriptAssembler()
 
@@ -668,6 +750,7 @@ final class RecordingTests: XCTestCase {
 @MainActor
 private final class TestRecorder: AudioRecording {
     var onFailure: (@MainActor (RecordingError) -> Void)?
+    var onLevel: (@MainActor (Double) -> Void)?
     var permissionGranted = true
     var pausePermission = false
     var permissionRequests = 0
@@ -712,6 +795,10 @@ private final class TestRecorder: AudioRecording {
 
     func cancelRecording() {
         isRecording = false
+    }
+
+    func emitLevel(_ level: Double) {
+        onLevel?(level)
     }
 }
 
