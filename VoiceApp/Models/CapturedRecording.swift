@@ -83,45 +83,6 @@ func recordingOverlayPanelFrame(in visibleFrame: CGRect) -> CGRect {
     return CGRect(x: x, y: y, width: panelWidth, height: panelHeight)
 }
 
-private let spokenPunctuationMappings: [(phrase: String, symbol: String)] = [
-    ("full stop", "."),
-    ("exclamation mark", "!"),
-    ("exclamation point", "!"),
-    ("question mark", "?"),
-    ("semicolon", ";"),
-    ("colon", ":"),
-    ("comma", ","),
-    ("period", ".")
-]
-
-func applyingSpokenPunctuation(to text: String) -> String {
-    var result = text
-    for (phrase, symbol) in spokenPunctuationMappings {
-        result = replacingSpokenPhrase(phrase, in: result, with: symbol)
-    }
-    return normalizingPunctuationSpacing(result)
-}
-
-private func replacingSpokenPhrase(_ phrase: String, in text: String, with symbol: String) -> String {
-    let escaped = NSRegularExpression.escapedPattern(for: phrase).replacingOccurrences(of: "\\ ", with: "\\s+")
-    guard let regex = try? NSRegularExpression(pattern: "\\b\(escaped)\\b", options: [.caseInsensitive]) else { return text }
-    let range = NSRange(text.startIndex..., in: text)
-    return regex.stringByReplacingMatches(in: text, range: range, withTemplate: symbol)
-}
-
-private func normalizingPunctuationSpacing(_ text: String) -> String {
-    var result = text
-    result = replacingPattern("\\s+([.,;:!?])", in: result, with: "$1")
-    result = replacingPattern("[ \\t]{2,}", in: result, with: " ")
-    return result.trimmingCharacters(in: .whitespacesAndNewlines)
-}
-
-private func replacingPattern(_ pattern: String, in text: String, with template: String) -> String {
-    guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
-    let range = NSRange(text.startIndex..., in: text)
-    return regex.stringByReplacingMatches(in: text, range: range, withTemplate: template)
-}
-
 func overlayPhase(previous: DictationState, current: DictationState, lastError: RecordingError?) -> OverlayPhase {
     switch current {
     case .recording:

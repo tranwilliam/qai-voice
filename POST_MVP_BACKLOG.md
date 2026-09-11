@@ -10,7 +10,7 @@ This file is the source of truth for work after the v0.1 dictation loop. Work on
 - [x] **P2 — Default developer vocabulary pack:** add QA, IT, cloud, security, and AI terms as recognition hints and safe corrections.
 - [ ] **P2b — Pause-based continuous insertion:** detect silence during recording and auto-insert sections without stopping, then press hotkey to end session.
 - [x] **P3 — Recent transcript history:** retain the last 10–20 transcripts for copy, reinsert, delete, and clear actions.
-- [x] **P4 — Terminal-aware formatting:** support basic spoken punctuation conversion.
+- [ ] **P4 — Terminal-aware formatting:** improve paths, flags, package names, URLs, punctuation, and spoken "new line" handling.
 - [ ] **P5 — Engine benchmark:** compare Apple Speech, local Whisper, and Parakeet on the same recordings.
 - [ ] **P6 — Optional speech engines:** add another engine only when benchmarks show a meaningful improvement.
 - [ ] **P7 — Settings and polish:** configurable hotkey, launch at login, editable vocabulary, and engine selection.
@@ -195,22 +195,11 @@ Acceptance criteria:
 - **Workaround for now:** Don't rely on history audio playback; use history for copy-to-clipboard only.
 - **Future fix:** Simplify cleanup strategy (e.g., only clean on app shutdown, not per-recording) or use reference counting to track which files are in active use.
 
-## ✅ P4 — Spoken Punctuation Formatting
+## P4 — Terminal-aware formatting
 
-**What shipped:**
-- **Basic punctuation conversion:** period, full stop, comma, question mark, exclamation mark/point, colon, and semicolon.
-- **Applies to both Copy and Insert:** conversion happens when text leaves the app (clipboard or insertion), not stored in history.
-- **Raw transcript preserved:** `lastTranscript` and `transcriptHistory` storage remains untouched for debugging and future reference.
-- **Word boundary protection:** “periodic table” is not mangled, but “grace period” → “grace.” (accepted trade-off, same as Apple Dictation).
-- **Spacing normalization:** removes spaces before punctuation, collapses multiple spaces.
-- **Comprehensive test coverage:** 15 new tests covering pure function behavior and AppState integration.
-
-**Scope for v1:**
-- No newline handling (“new line” / “new paragraph” deferred to accommodate potential Whisper integration).
-- No shell-specific symbols (dash, equals, parentheses) — those are higher-risk in normal speech.
-
-**Known trade-off:**
-Words like “period” occasionally appear as ordinary nouns (“grace period”, “trial period”) and will be converted to `.` This matches Apple's system Dictation behavior and is not solvable without heavier NLP disambiguation.
+- Improve recognition of shell paths, flags, package names, URLs, and code identifiers.
+- Support spoken punctuation and “new line” where reliable.
+- Avoid transformations that could silently change a shell command.
 
 ## P5/P6 — Speech-engine evaluation
 

@@ -164,164 +164,6 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(normalizedMicrophoneLevel(decibels: 4), 1, accuracy: 0.001)
     }
 
-    func testSpokenPunctuationPeriodConvertsToRealPeriod() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "run the tests period"), "run the tests.")
-        XCTAssertEqual(applyingSpokenPunctuation(to: "hello world period"), "hello world.")
-    }
-
-    func testSpokenPunctuationFullStopConvertsToRealPeriod() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "done full stop"), "done.")
-    }
-
-    func testSpokenPunctuationCommaConvertsCorrectly() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "first comma second"), "first, second")
-        XCTAssertEqual(applyingSpokenPunctuation(to: "done comma actually wait"), "done, actually wait")
-    }
-
-    func testSpokenPunctuationQuestionMarkConvertsCorrectly() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "what is this question mark"), "what is this?")
-    }
-
-    func testSpokenPunctuationExclamationMarkConvertsCorrectly() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "wow exclamation mark"), "wow!")
-        XCTAssertEqual(applyingSpokenPunctuation(to: "amazing exclamation point"), "amazing!")
-    }
-
-    func testSpokenPunctuationColonAndSemicolonConvertCorrectly() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "note colon test"), "note: test")
-        XCTAssertEqual(applyingSpokenPunctuation(to: "first semicolon second"), "first; second")
-    }
-
-    func testSpokenPunctuationWordBoundaryProtectsPartialMatches() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "the periodic table"), "the periodic table")
-    }
-
-    func testSpokenPunctuationCaseInsensitive() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "test Period"), "test.")
-        XCTAssertEqual(applyingSpokenPunctuation(to: "test COMMA value"), "test, value")
-    }
-
-    func testSpokenPunctuationAcceptedTradeoffPeriodInNounPhrases() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "a grace period"), "a grace.")
-        XCTAssertEqual(applyingSpokenPunctuation(to: "full stop sign"), ". sign")
-    }
-
-    func testSpokenPunctuationMultipleConversionsInOneSentence() {
-        XCTAssertEqual(
-            applyingSpokenPunctuation(to: "commit period then push period"),
-            "commit. then push."
-        )
-    }
-
-    func testSpokenPunctuationRemovesTrailingSpacesBeforePunctuation() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: "test  period"), "test.")
-        XCTAssertEqual(applyingSpokenPunctuation(to: "done  comma  next"), "done, next")
-    }
-
-    func testSpokenPunctuationEmptyStringReturnsEmpty() {
-        XCTAssertEqual(applyingSpokenPunctuation(to: ""), "")
-    }
-
-    func testSpokenPunctuationPlainTextUnchanged() {
-        let text = "just plain text without triggers"
-        XCTAssertEqual(applyingSpokenPunctuation(to: text), text)
-    }
-
-    func testStopRecordingInsertsFormattedTextNotRawText() async throws {
-        let (app, _, _, inserter, directory) = try fixture()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        await app.startRecording()
-        await app.stopRecording()
-
-        XCTAssertEqual(app.lastTranscript?.rawText, "hello world")
-        XCTAssertEqual(inserter.lastInsertedText, "hello world")
-        app.shutdown()
-    }
-
-    func testStopRecordingWithPunctuationInsertsFormatted() async throws {
-        let (app, _, transcriber, inserter, directory) = try fixture()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        transcriber.resultText = "run tests period"
-        await app.startRecording()
-        await app.stopRecording()
-
-        XCTAssertEqual(app.lastTranscript?.rawText, "run tests period")
-        XCTAssertEqual(inserter.lastInsertedText, "run tests.")
-        app.shutdown()
-    }
-
-    func testCopyTranscriptFormatsText() async throws {
-        let (app, _, transcriber, inserter, directory) = try fixture()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        transcriber.resultText = "done full stop"
-        await app.startRecording()
-        await app.stopRecording()
-
-        app.copyTranscript()
-
-        XCTAssertEqual(app.lastTranscript?.rawText, "done full stop")
-        XCTAssertEqual(inserter.lastCopiedText, "done.")
-        app.shutdown()
-    }
-
-    func testInsertTranscriptFormatsText() async throws {
-        let (app, _, transcriber, inserter, directory) = try fixture()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        transcriber.resultText = "commit period"
-        await app.startRecording()
-        await app.stopRecording()
-        let firstInsertCount = inserter.insertCallCount
-
-        await app.insertTranscript()
-
-        XCTAssertEqual(app.lastTranscript?.rawText, "commit period")
-        XCTAssertEqual(inserter.lastInsertedText, "commit.")
-        XCTAssertEqual(inserter.insertCallCount, firstInsertCount + 1)
-        app.shutdown()
-    }
-
-    func testHistoryEntriesRemainUnformattedInStorage() async throws {
-        let (app, _, transcriber, _, directory) = try fixture()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        transcriber.resultText = "test comma one"
-        await app.startRecording()
-        await app.stopRecording()
-
-        let entry = try XCTUnwrap(app.transcriptHistory.first)
-        XCTAssertEqual(entry.transcript.rawText, "test comma one")
-        app.shutdown()
-    }
-
-    func testCopyHistoryEntryFormatsText() async throws {
-        let (app, _, transcriber, inserter, directory) = try fixture()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        transcriber.resultText = "query period"
-        await app.startRecording()
-        await app.stopRecording()
-        let entry = try XCTUnwrap(app.transcriptHistory.first)
-
-        app.copyHistoryEntry(entry)
-
-        XCTAssertEqual(entry.transcript.rawText, "query period")
-        XCTAssertEqual(inserter.lastCopiedText, "query.")
-        app.shutdown()
-    }
-
-    func testInsertHistoryEntryFormatsText() async throws {
-        let (app, _, transcriber, inserter, directory) = try fixture()
-        defer { try? FileManager.default.removeItem(at: directory) }
-        transcriber.resultText = "save comma commit"
-        await app.startRecording()
-        await app.stopRecording()
-        let entry = try XCTUnwrap(app.transcriptHistory.first)
-
-        await app.insertHistoryEntry(entry)
-
-        XCTAssertEqual(entry.transcript.rawText, "save comma commit")
-        XCTAssertEqual(inserter.lastInsertedText, "save, commit")
-        app.shutdown()
-    }
-
     func testRecorderLevelUpdatesOnlyWhileRecording() async throws {
         let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -1039,7 +881,6 @@ private final class FakeInserter: TextInserting {
     var insertContinuation: CheckedContinuation<Bool, Never>?
     var copyCallCount = 0
     var lastCopiedText: String?
-    var lastInsertedText: String?
 
     func isTrusted() -> Bool {
         trusted
@@ -1051,7 +892,6 @@ private final class FakeInserter: TextInserting {
 
     func insert(_ text: String) async -> Bool {
         insertCallCount += 1
-        lastInsertedText = text
         if pauseInsert {
             return await withCheckedContinuation { insertContinuation = $0 }
         }
