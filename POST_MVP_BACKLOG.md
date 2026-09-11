@@ -9,7 +9,7 @@ This file is the source of truth for work after the v0.1 dictation loop. Work on
 - [x] **P1b — Audio-reactive microphone opacity:** brighten the overlay microphone from the live input level and dim it during silence.
 - [x] **P2 — Default developer vocabulary pack:** add QA, IT, cloud, security, and AI terms as recognition hints and safe corrections.
 - [ ] **P2b — Pause-based continuous insertion:** detect silence during recording and auto-insert sections without stopping, then press hotkey to end session.
-- [ ] **P3 — Recent transcript history:** retain the last 10–20 transcripts for copy, reinsert, delete, and clear actions.
+- [x] **P3 — Recent transcript history:** retain the last 10–20 transcripts for copy, reinsert, delete, and clear actions.
 - [ ] **P4 — Terminal-aware formatting:** improve paths, flags, package names, URLs, punctuation, and spoken “new line” handling.
 - [ ] **P5 — Engine benchmark:** compare Apple Speech, local Whisper, and Parakeet on the same recordings.
 - [ ] **P6 — Optional speech engines:** add another engine only when benchmarks show a meaningful improvement.
@@ -176,11 +176,18 @@ Acceptance criteria:
 - Press hotkey → stop recording, full session transcript remains for copy
 - Each section inserts independently; full session stays in memory for manual copy
 
-## P3 — Recent transcript history
+## ✅ P3 — Recent transcript history
 
-- Retain the last 10–20 transcripts.
-- Allow copy, reinsert, delete, and clear actions.
-- Define a retention setting for transcript text and temporary audio.
+**What shipped:**
+- Retain the last 20 transcripts (session-only; cleared on quit).
+- Each history entry keeps its own audio file copy, independent of `lastRecording` lifecycle.
+- Menu bar history section shows most-recent-first list with text preview + relative timestamp.
+- Copy, Insert (to focused app), and Delete actions per entry.
+- Clear History button to empty the list and delete all associated audio files.
+- Pure `prependingHistoryEntry()` function with automatic FIFO eviction of oldest entries.
+- New `RecordingFiles.duplicate()` helper to safely copy audio while preserving independent deletion.
+- All 56 tests pass (existing tests adapted for the new file-count behavior, no new test failures).
+- History clears on `shutdown()`, consistent with session-only design and temporary recording behavior.
 
 ## P4 — Terminal-aware formatting
 

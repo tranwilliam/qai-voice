@@ -10,6 +10,7 @@ final class AppState {
     private(set) var lastTranscript: TranscriptionResult?
     private(set) var lastError: RecordingError?
     private(set) var audioLevel: Double = 0
+    private(set) var transcriptHistory: [TranscriptHistoryEntry] = []
 
     private let recorder: any AudioRecording
     private let transcriber: any SpeechTranscribing
@@ -110,6 +111,7 @@ final class AppState {
             // If shutdown/cancel ran while we were awaiting, don't resurrect stale results.
             guard state == .transcribing else { return }
             lastTranscript = transcript
+            addHistoryEntry(transcript: transcript, recording: result)
             logger.info("Transcription completed: \(transcript.rawText.count, privacy: .public) characters")
         } catch {
             guard state == .transcribing else { return }
@@ -194,9 +196,46 @@ final class AppState {
         lastError = inserted ? nil : .insertionFailed
     }
 
+    func copyHistoryEntry(_ entry: TranscriptHistoryEntry) {
+        inserter.copyToClipboard(entry.transcript.rawText)
+        lastError = nil
+    }
+
+    func insertHistoryEntry(_ entry: TranscriptHistoryEntry) async {
+        guard state == .idle else { return }
+        state = .inserting
+        guard inserter.isTrusted() else {
+            inserter.promptForTrust()
+            lastError = .accessibilityPermissionDenied
+            state = .idle
+            return
+        }
+        let inserted = await inserter.insert(entry.transcript.rawText)
+        guard state == .inserting else { return }
+        state = .idle
+        lastError = inserted ? nil : .insertionFailed
+    }
+
+    func deleteHistoryEntry(_ entry: TranscriptHistoryEntry) {
+        transcriptHistory.removeAll { $0.id == entry.id }
+        do {
+            try files.remove(entry.recording.url)
+        } catch {
+            lastError = .fileAccess
+        }
+    }
+
+    func clearHistory() {
+        for entry in transcriptHistory {
+            try? files.remove(entry.recording.url)
+        }
+        transcriptHistory = []
+    }
+
     func shutdown() {
         cancelRecording()
         deleteLastRecording()
+        clearHistory()
     }
 
     private func fail(_ error: RecordingError) {
@@ -217,5 +256,13 @@ final class AppState {
         } catch {
             lastError = .fileAccess
         }
+    }
+
+    private func addHistoryEntry(transcript: TranscriptionResult, recording: CapturedRecording) {
+        guard let copy = try? files.duplicate(recording.url, duration: recording.duration) else { return }
+        let entry = TranscriptHistoryEntry(id: UUID(), transcript: transcript, recording: copy, capturedAt: Date())
+        let (kept, evicted) = prependingHistoryEntry(transcriptHistory, adding: entry, limit: 20)
+        transcriptHistory = kept
+        for old in evicted { try? files.remove(old.recording.url) }
     }
 }

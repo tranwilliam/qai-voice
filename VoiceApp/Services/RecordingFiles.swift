@@ -49,6 +49,13 @@ struct RecordingFiles {
         }
     }
 
+    func duplicate(_ url: URL, duration: TimeInterval) throws -> CapturedRecording {
+        guard owns(url) else { throw RecordingError.fileAccess }
+        let destination = newURL()
+        try FileManager.default.copyItem(at: url, to: destination)
+        return CapturedRecording(url: destination, duration: duration)
+    }
+
     private func owns(_ url: URL) -> Bool {
         let name = url.deletingPathExtension().lastPathComponent
         return url.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL

@@ -315,9 +315,12 @@ final class RecordingTests: XCTestCase {
         await app.stopRecording()
         let second = try XCTUnwrap(app.lastRecording)
         XCTAssertNotEqual(first.url, second.url)
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 1)
+        // 1 current recording + 1 history entry = 2 files
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 2)
         app.shutdown()
         XCTAssertFalse(FileManager.default.fileExists(atPath: second.url.path))
+        // After shutdown, all history is cleared
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 0)
     }
 
     func testStopFailureReturnsToReadyAndRemovesAudio() async throws {

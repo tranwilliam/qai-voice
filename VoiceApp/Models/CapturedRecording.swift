@@ -5,6 +5,23 @@ struct CapturedRecording: Equatable {
     let duration: TimeInterval
 }
 
+struct TranscriptHistoryEntry: Identifiable, Equatable {
+    let id: UUID
+    let transcript: TranscriptionResult
+    let recording: CapturedRecording
+    let capturedAt: Date
+}
+
+func prependingHistoryEntry(
+    _ entries: [TranscriptHistoryEntry],
+    adding entry: TranscriptHistoryEntry,
+    limit: Int
+) -> (kept: [TranscriptHistoryEntry], evicted: [TranscriptHistoryEntry]) {
+    let updated = [entry] + entries
+    guard updated.count > limit else { return (updated, []) }
+    return (Array(updated.prefix(limit)), Array(updated.suffix(from: limit)))
+}
+
 enum OverlayPhase: Equatable {
     case hidden
     case recording
