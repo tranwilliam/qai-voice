@@ -32,8 +32,13 @@ struct MenuBarView: View {
 
             if !appState.transcriptHistory.isEmpty {
                 Divider()
-                historySection
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                Menu("History") {
+                    ForEach(appState.transcriptHistory) { entry in
+                        Button(truncateText(entry.transcript.rawText, maxLength: 50)) {
+                            appState.copyHistoryEntry(entry)
+                        }
+                    }
+                }
             }
 
             Divider()
@@ -148,6 +153,14 @@ struct MenuBarView: View {
         .padding(.horizontal, 8)
     }
 
+    private func truncateText(_ text: String, maxLength: Int) -> String {
+        let lines = text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+        let firstLine = String(lines[0])
+        guard firstLine.count > maxLength else { return firstLine }
+        let truncated = String(firstLine.prefix(maxLength))
+        return truncated + "..."
+    }
+
     @ViewBuilder
     private func recordingSection(_ recording: CapturedRecording) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -167,52 +180,4 @@ struct MenuBarView: View {
         .padding(.horizontal, 8)
     }
 
-    private var historySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("History (\(appState.transcriptHistory.count))")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 8)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(appState.transcriptHistory) { entry in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text(entry.transcript.rawText)
-                                .font(.system(.body, design: .monospaced))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .foregroundColor(.primary)
-                            Text(entry.capturedAt.formatted(.relative(presentation: .named)))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                        if appState.state == .idle {
-                            HStack(spacing: 4) {
-                                Button("Copy") {
-                                    appState.copyHistoryEntry(entry)
-                                }
-                                Button("Insert") {
-                                    Task { await appState.insertHistoryEntry(entry) }
-                                }
-                                Button("Delete") {
-                                    appState.deleteHistoryEntry(entry)
-                                }
-                            }
-                            .font(.caption)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-            .padding(.horizontal, 8)
-
-            Button("Clear History") {
-                appState.clearHistory()
-            }
-            .font(.caption)
-            .padding(.horizontal, 8)
-        }
-    }
 }
