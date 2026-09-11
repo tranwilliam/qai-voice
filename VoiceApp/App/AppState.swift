@@ -129,12 +129,13 @@ final class AppState {
             logger.error("Text insertion failed: Accessibility access not granted")
             return
         }
-        let inserted = await inserter.insert(transcript.rawText)
+        let formattedText = applyingSpokenPunctuation(to: transcript.rawText)
+        let inserted = await inserter.insert(formattedText)
         // If shutdown/cancel ran while we were awaiting, don't resurrect stale results.
         guard state == .inserting else { return }
         if inserted {
             state = .idle
-            logger.info("Text inserted: \(transcript.rawText.count, privacy: .public) characters")
+            logger.info("Text inserted: \(formattedText.count, privacy: .public) characters")
         } else {
             lastError = .insertionFailed
             state = .idle
@@ -180,7 +181,8 @@ final class AppState {
 
     func copyTranscript() {
         guard let lastTranscript else { return }
-        inserter.copyToClipboard(lastTranscript.rawText)
+        let formattedText = applyingSpokenPunctuation(to: lastTranscript.rawText)
+        inserter.copyToClipboard(formattedText)
         lastError = nil
     }
 
@@ -193,14 +195,16 @@ final class AppState {
             state = .idle
             return
         }
-        let inserted = await inserter.insert(lastTranscript.rawText)
+        let formattedText = applyingSpokenPunctuation(to: lastTranscript.rawText)
+        let inserted = await inserter.insert(formattedText)
         guard state == .inserting else { return }
         state = .idle
         lastError = inserted ? nil : .insertionFailed
     }
 
     func copyHistoryEntry(_ entry: TranscriptHistoryEntry) {
-        inserter.copyToClipboard(entry.transcript.rawText)
+        let formattedText = applyingSpokenPunctuation(to: entry.transcript.rawText)
+        inserter.copyToClipboard(formattedText)
         lastError = nil
     }
 
@@ -213,7 +217,8 @@ final class AppState {
             state = .idle
             return
         }
-        let inserted = await inserter.insert(entry.transcript.rawText)
+        let formattedText = applyingSpokenPunctuation(to: entry.transcript.rawText)
+        let inserted = await inserter.insert(formattedText)
         guard state == .inserting else { return }
         state = .idle
         lastError = inserted ? nil : .insertionFailed
