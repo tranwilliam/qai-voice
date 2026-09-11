@@ -294,7 +294,7 @@ final class RecordingTests: XCTestCase {
         app.shutdown()
     }
 
-    func testSuccessfulStopProducesReadableAudioTranscriptAndNextSessionReplacesBoth() async throws {
+    func testEachSuccessfulDictationKeepsExactlyOneHistoryAudioFile() async throws {
         let (app, _, transcriber, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
         transcriber.resultText = "hello world"
@@ -309,13 +309,17 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(transcriber.transcribeCallCount, 1)
 
         await app.startRecording()
-        XCTAssertFalse(FileManager.default.fileExists(atPath: first.url.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.url.path))
         XCTAssertNil(app.lastRecording)
         XCTAssertNil(app.lastTranscript)
         await app.stopRecording()
         let second = try XCTUnwrap(app.lastRecording)
         XCTAssertNotEqual(first.url, second.url)
-        // 1 current recording + 1 history entry = 2 files
+        XCTAssertEqual(app.transcriptHistory.count, 2)
+        XCTAssertEqual(second.url, app.transcriptHistory.first?.recording.url)
+        XCTAssertTrue(app.transcriptHistory.allSatisfy {
+            FileManager.default.fileExists(atPath: $0.recording.url.path)
+        })
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.path).count, 2)
         app.shutdown()
         XCTAssertFalse(FileManager.default.fileExists(atPath: second.url.path))
@@ -412,8 +416,37 @@ final class RecordingTests: XCTestCase {
         app.deleteLastRecording()
 
         XCTAssertNil(app.lastRecording)
+        XCTAssertTrue(app.transcriptHistory.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: recording.url.path))
         XCTAssertEqual(app.state, .idle)
+    }
+
+    func testDeletingLatestHistoryEntryClearsSharedLastRecording() async throws {
+        let (app, _, _, _, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        await app.startRecording()
+        await app.stopRecording()
+        let entry = try XCTUnwrap(app.transcriptHistory.first)
+
+        app.deleteHistoryEntry(entry)
+
+        XCTAssertTrue(app.transcriptHistory.isEmpty)
+        XCTAssertNil(app.lastRecording)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: entry.recording.url.path))
+    }
+
+    func testClearHistoryClearsSharedLastRecording() async throws {
+        let (app, _, _, _, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        await app.startRecording()
+        await app.stopRecording()
+        let recording = try XCTUnwrap(app.lastRecording)
+
+        app.clearHistory()
+
+        XCTAssertTrue(app.transcriptHistory.isEmpty)
+        XCTAssertNil(app.lastRecording)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: recording.url.path))
     }
 
     func testToggleDictationFromIdleStartsRecording() async throws {

@@ -15,10 +15,11 @@ struct RecordingFiles {
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
+        let preservedPaths = Set(preserveURLs.map { $0.standardizedFileURL.path })
         // Only remove files owned by this app, including abandoned partial files.
         // Preserve any files in history (passed via preserveURLs).
         for url in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
-            if owns(url) && !preserveURLs.contains(url) {
+            if owns(url) && !preservedPaths.contains(url.standardizedFileURL.path) {
                 try remove(url)
             }
         }
@@ -52,13 +53,6 @@ struct RecordingFiles {
         }
     }
 
-    func duplicate(_ url: URL, duration: TimeInterval) throws -> CapturedRecording {
-        guard owns(url) else { throw RecordingError.fileAccess }
-        let destination = newURL()
-        try FileManager.default.copyItem(at: url, to: destination)
-        return CapturedRecording(url: destination, duration: duration)
-    }
-
     private func owns(_ url: URL) -> Bool {
         let name = url.deletingPathExtension().lastPathComponent
         return url.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL
@@ -67,4 +61,3 @@ struct RecordingFiles {
             && UUID(uuidString: String(name.dropFirst("recording-".count))) != nil
     }
 }
-

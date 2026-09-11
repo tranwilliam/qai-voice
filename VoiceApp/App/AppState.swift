@@ -69,10 +69,7 @@ final class AppState {
         }
 
         do {
-            if let lastRecording {
-                try files.remove(lastRecording.url)
-                self.lastRecording = nil
-            }
+            lastRecording = nil
             // Retry directory preparation if initial creation failed, and clear
             // any partial recording that could not be removed on the last error.
             // Preserve history entry audio files.
@@ -171,6 +168,10 @@ final class AppState {
         guard let lastRecording else { return }
         do {
             try files.remove(lastRecording.url)
+            let recordingPath = lastRecording.url.standardizedFileURL.path
+            transcriptHistory.removeAll {
+                $0.recording.url.standardizedFileURL.path == recordingPath
+            }
             self.lastRecording = nil
         } catch {
             lastError = .fileAccess
@@ -219,7 +220,11 @@ final class AppState {
     }
 
     func deleteHistoryEntry(_ entry: TranscriptHistoryEntry) {
+        let entryPath = entry.recording.url.standardizedFileURL.path
         transcriptHistory.removeAll { $0.id == entry.id }
+        if lastRecording?.url.standardizedFileURL.path == entryPath {
+            lastRecording = nil
+        }
         do {
             try files.remove(entry.recording.url)
         } catch {
@@ -228,6 +233,10 @@ final class AppState {
     }
 
     func clearHistory() {
+        let historyPaths = Set(transcriptHistory.map { $0.recording.url.standardizedFileURL.path })
+        if let lastRecording, historyPaths.contains(lastRecording.url.standardizedFileURL.path) {
+            self.lastRecording = nil
+        }
         for entry in transcriptHistory {
             try? files.remove(entry.recording.url)
         }
@@ -261,12 +270,8 @@ final class AppState {
     }
 
     private func addHistoryEntry(transcript: TranscriptionResult, recording: CapturedRecording) {
-        guard let copy = try? files.duplicate(recording.url, duration: recording.duration) else {
-            logger.error("Failed to duplicate recording for history")
-            return
-        }
-        let entry = TranscriptHistoryEntry(id: UUID(), transcript: transcript, recording: copy, capturedAt: Date())
-        logger.info("Added history entry: original=\(recording.url.lastPathComponent), copy=\(copy.url.lastPathComponent)")
+        let entry = TranscriptHistoryEntry(id: UUID(), transcript: transcript, recording: recording, capturedAt: Date())
+        logger.info("Added history entry: recording=\(recording.url.lastPathComponent)")
         let (kept, evicted) = prependingHistoryEntry(transcriptHistory, adding: entry, limit: 20)
         transcriptHistory = kept
         for old in evicted {
