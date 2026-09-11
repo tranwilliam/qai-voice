@@ -10,12 +10,11 @@ This file is the source of truth for work after the v0.1 dictation loop. Work on
 - [x] **P2 — Default developer vocabulary pack:** add QA, IT, cloud, security, and AI terms as recognition hints and safe corrections.
 - [ ] **P2b — Pause-based continuous insertion:** detect silence during recording and auto-insert sections without stopping, then press hotkey to end session.
 - [x] **P3 — Recent transcript history:** retain the last 10–20 transcripts for copy, reinsert, delete, and clear actions.
-- [ ] **P4 — Terminal-aware formatting:** improve paths, flags, package names, URLs, punctuation, and spoken "new line" handling.
-- [ ] **P5 — Engine benchmark:** compare Apple Speech, local Whisper, and Parakeet on the same recordings.
-- [ ] **P6 — Optional speech engines:** add another engine only when benchmarks show a meaningful improvement.
-- [ ] **P7 — Settings and polish:** configurable hotkey, launch at login, editable vocabulary, and engine selection.
-- [ ] **P8 — Distribution:** signed/notarized app, installer, and update path.
-- [ ] **P9 — Communication coaching:** optional speaking metrics and coaching as a separate later product layer.
+- [ ] **P4 — Engine benchmark:** compare Apple Speech, local Whisper, and Parakeet on the same recordings.
+- [ ] **P5 — Optional speech engines:** add another engine only when benchmarks show a meaningful improvement.
+- [ ] **P6 — Settings and polish:** configurable hotkey, launch at login, editable vocabulary, and engine selection.
+- [ ] **P7 — Distribution:** signed/notarized app, installer, and update path.
+- [ ] **P8 — Communication coaching:** optional speaking metrics and coaching as a separate later product layer.
 
 ## P0 — Transcript recovery
 
@@ -195,13 +194,7 @@ Acceptance criteria:
 - **Workaround for now:** Don't rely on history audio playback; use history for copy-to-clipboard only.
 - **Future fix:** Simplify cleanup strategy (e.g., only clean on app shutdown, not per-recording) or use reference counting to track which files are in active use.
 
-## P4 — Terminal-aware formatting
-
-- Improve recognition of shell paths, flags, package names, URLs, and code identifiers.
-- Support spoken punctuation and “new line” where reliable.
-- Avoid transformations that could silently change a shell command.
-
-## P5/P6 — Speech-engine evaluation
+## P4 — Engine benchmark
 
 Use the same representative recordings for Apple Speech, local Whisper, and Parakeet. Compare:
 
@@ -213,8 +206,18 @@ Use the same representative recordings for Apple Speech, local Whisper, and Para
 
 Keep Apple Speech as the default unless another engine wins on the measurements that matter for this app.
 
-## P7/P8/P9 — Polish, distribution, and coaching
+## P5 — Optional speech engines
+
+Add another engine only when benchmarks show a meaningful improvement.
+
+## P6 — Settings and polish
 
 - Add configurable hotkey, launch-at-login, editable vocabulary, and engine selection.
+
+## P7 — Distribution
+
 - Prepare signing, notarization, installation, and updates before wider distribution.
+
+## P8 — Communication coaching
+
 - Treat communication metrics and coaching as optional future work after the dictation workflow is dependable.
