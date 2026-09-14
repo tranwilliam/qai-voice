@@ -20,7 +20,7 @@ func normalizedMicrophoneLevel(decibels: Float) -> Double {
 func smoothedMicrophoneLevel(previous: Double, input: Double) -> Double {
     let boundedPrevious = min(max(previous, 0), 1)
     let boundedInput = min(max(input, 0), 1)
-    let response = boundedInput > boundedPrevious ? 0.6 : 0.45
+    let response = boundedInput > boundedPrevious ? 0.6 : 0.70
     return boundedPrevious + ((boundedInput - boundedPrevious) * response)
 }
 
