@@ -22,7 +22,7 @@ struct VoiceApp: App {
             return .primary
         case .requestingPermission, .stopping, .transcribing, .inserting:
             return .blue
-        case .recording:
+        case .recording, .continuousRecording:
             return .red
         }
     }

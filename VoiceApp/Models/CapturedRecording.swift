@@ -87,7 +87,7 @@ func recordingOverlayPanelFrame(in visibleFrame: CGRect) -> CGRect {
 
 func overlayPhase(previous: DictationState, current: DictationState, lastError: RecordingError?) -> OverlayPhase {
     switch current {
-    case .recording:
+    case .recording, .continuousRecording:
         return .recording
     case .requestingPermission, .stopping, .transcribing, .inserting:
         return .processing(label: current.title)

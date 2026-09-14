@@ -2,6 +2,7 @@ enum DictationState {
     case idle
     case requestingPermission
     case recording
+    case continuousRecording
     case stopping
     case transcribing
     case inserting
@@ -11,6 +12,7 @@ enum DictationState {
         case .idle: "Ready"
         case .requestingPermission: "Waiting for Microphone Access"
         case .recording: "Recording…"
+        case .continuousRecording: "Continuous Session…"
         case .stopping: "Finishing Recording…"
         case .transcribing: "Transcribing…"
         case .inserting: "Inserting…"
@@ -21,7 +23,7 @@ enum DictationState {
         switch self {
         case .idle: "mic"
         case .requestingPermission, .stopping, .transcribing, .inserting: "hourglass"
-        case .recording: "stop.circle.fill"
+        case .recording, .continuousRecording: "stop.circle.fill"
         }
     }
 }

@@ -83,6 +83,10 @@ struct MenuBarView: View {
                 Button("Stop Dictation") {
                     Task { await appState.stopRecording() }
                 }
+            case .continuousRecording:
+                Button("End Session") {
+                    Task { await appState.stopRecording() }
+                }
             case .stopping:
                 Text("Saving audio…")
                     .foregroundColor(.secondary)

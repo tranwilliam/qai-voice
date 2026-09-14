@@ -20,6 +20,13 @@ final class AppState {
     private var attempt: UUID?
     private let logger = Logger(subsystem: "com.williamt.voiceapp", category: "Recording")
 
+    // Continuous recording state
+    private var sessionTranscript: String = ""
+    private var lastSilenceTime: Date?
+    private let silenceThreshold: TimeInterval = 1.5
+    private var continuousChunks: [String] = []
+    private var lastAudioLevelTime: Date = Date()
+
     init(
         recorder: any AudioRecording = AudioRecordingService(),
         files: RecordingFiles = RecordingFiles(),
@@ -40,8 +47,14 @@ final class AppState {
             self.fail(error)
         }
         recorder.onLevel = { [weak self] level in
-            guard let self, self.state == .recording else { return }
-            self.audioLevel = smoothedMicrophoneLevel(previous: self.audioLevel, input: level)
+            guard let self else { return }
+            if self.state == .recording || self.state == .continuousRecording {
+                self.audioLevel = smoothedMicrophoneLevel(previous: self.audioLevel, input: level)
+
+                if self.state == .continuousRecording {
+                    self.updateSilenceDetection(level: level)
+                }
+            }
         }
     }
 
@@ -156,7 +169,7 @@ final class AppState {
             switch state {
             case .idle:
                 await startRecording()
-            case .recording:
+            case .recording, .continuousRecording:
                 await stopRecording()
             case .requestingPermission, .stopping, .transcribing, .inserting:
                 break
@@ -277,6 +290,22 @@ final class AppState {
         for old in evicted {
             logger.info("Evicting history entry: \(old.recording.url.lastPathComponent)")
             try? files.remove(old.recording.url)
+        }
+    }
+
+    private func updateSilenceDetection(level: Double) {
+        let silenceThresholdLevel = 0.05
+        let now = Date()
+
+        if level < silenceThresholdLevel {
+            if lastSilenceTime == nil {
+                lastSilenceTime = now
+            } else if now.timeIntervalSince(lastSilenceTime!) > silenceThreshold {
+                logger.info("Silence detected, would trigger chunk transcription here")
+                lastSilenceTime = nil
+            }
+        } else {
+            lastSilenceTime = nil
         }
     }
 }
