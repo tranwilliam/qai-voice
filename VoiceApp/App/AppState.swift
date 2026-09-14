@@ -26,6 +26,7 @@ final class AppState {
     private let silenceThreshold: TimeInterval = 0.3
     private var continuousChunks: [String] = []
     private var wasRecordingSound = false
+    private var chunkStartTime: Date?
 
     init(
         recorder: any AudioRecording = AudioRecordingService(),
@@ -59,11 +60,10 @@ final class AppState {
     }
 
     func startContinuousRecording() async {
-        print("DEBUG: startContinuousRecording called")
         await startRecording()
-        print("DEBUG: after startRecording, state=\(state == .recording)")
         if state == .recording {
             state = .continuousRecording
+            chunkStartTime = Date()
             print("🔴 CONTINUOUS MODE STARTED")
         }
     }
@@ -363,9 +363,15 @@ final class AppState {
     }
 
     private func handlePauseDetected() {
-        logger.info("🔴 handlePauseDetected called")
+        print("🔴 PAUSE DETECTED - starting transcription")
         guard state == .continuousRecording, let pendingURL else {
-            logger.error("🔴 Guard failed, returning")
+            print("🔴 Guard 1 failed - wrong state or no URL")
+            return
+        }
+
+        let chunkDuration = chunkStartTime.map { Date().timeIntervalSince($0) } ?? 0
+        guard chunkDuration > 0.5 else {
+            print("🔴 Chunk too short (\(chunkDuration)s) - skipping")
             return
         }
 
@@ -402,7 +408,9 @@ final class AppState {
                     try self.files.prepare(preserveURLs: historyURLs)
                     let newURL = self.files.newURL()
                     self.pendingURL = newURL
+                    self.chunkStartTime = Date()
                     try self.recorder.startRecording(to: newURL)
+                    print("🔴 New chunk recording started")
                 } catch {
                     logger.error("Failed to start new chunk recording: \(error)")
                     state = .idle
