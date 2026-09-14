@@ -65,9 +65,11 @@ func waveformBarScales(recentLevels: [Double]) -> [CGFloat] {
     let loudScales: [CGFloat] = [0.6, 0.82, 1, 0.76, 0.56]
     let sampleOrder = [4, 2, 0, 1, 3]
     let paddedLevels = Array((recentLevels + Array(repeating: 0, count: 5)).prefix(5))
+    let currentLevel = min(max(paddedLevels[0], 0), 1)
 
     return sampleOrder.indices.map { barIndex in
-        let level = CGFloat(min(max(paddedLevels[sampleOrder[barIndex]], 0), 1))
+        let sample = min(max(paddedLevels[sampleOrder[barIndex]], 0), 1)
+        let level = CGFloat(min(sample, currentLevel))
         let shapedLevel = pow(level, 0.72)
         let quiet = quietScales[barIndex]
         return quiet + ((loudScales[barIndex] - quiet) * shapedLevel)

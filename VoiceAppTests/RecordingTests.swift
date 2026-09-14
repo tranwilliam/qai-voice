@@ -142,19 +142,27 @@ final class RecordingTests: XCTestCase {
     func testWaveformUsesCurrentSoundInCenterAndFlowsEarlierSoundToTheSides() {
         let silence = waveformBarScales(recentLevels: [0, 0, 0, 0, 0])
         let newSound = waveformBarScales(recentLevels: [1, 0, 0, 0, 0])
-        let previousSound = waveformBarScales(recentLevels: [0, 1, 0, 0, 0])
+        let continuingSound = waveformBarScales(recentLevels: [1, 1, 0, 0, 0])
 
         XCTAssertTrue(silence.allSatisfy { abs($0 - silence[0]) < 0.001 })
         XCTAssertLessThan(silence[0], 0.3)
         XCTAssertEqual(newSound[2], 1, accuracy: 0.001)
         XCTAssertTrue(newSound.enumerated().allSatisfy { index, scale in index == 2 || scale < 0.3 })
-        XCTAssertGreaterThan(previousSound[3], previousSound[2])
-        XCTAssertGreaterThan(previousSound[3], previousSound[1])
+        XCTAssertGreaterThan(continuingSound[3], continuingSound[1])
     }
 
-    func testMicrophoneLevelBrightensFasterThanItFades() {
+    func testWaveformDropsOlderPeaksAsSoonAsCurrentSoundBecomesQuieter() {
+        let fallingSound = waveformBarScales(recentLevels: [0.2, 1, 1, 1, 1])
+        let steadyQuietSound = waveformBarScales(recentLevels: [0.2, 0.2, 0.2, 0.2, 0.2])
+
+        for index in fallingSound.indices {
+            XCTAssertEqual(fallingSound[index], steadyQuietSound[index], accuracy: 0.001)
+        }
+    }
+
+    func testMicrophoneLevelUsesFastAttackAndImmediateDecay() {
         XCTAssertEqual(smoothedMicrophoneLevel(previous: 0, input: 1), 0.6, accuracy: 0.001)
-        XCTAssertEqual(smoothedMicrophoneLevel(previous: 1, input: 0), 0.55, accuracy: 0.001)
+        XCTAssertEqual(smoothedMicrophoneLevel(previous: 1, input: 0), 0, accuracy: 0.001)
     }
 
     func testMicrophoneDecibelsMapIntoUsableLevelRange() {
