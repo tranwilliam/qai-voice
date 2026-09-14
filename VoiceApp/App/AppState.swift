@@ -348,6 +348,7 @@ final class AppState {
         }
     }
 
+
     private func updateSilenceDetection(level: Double) {
         let silenceThresholdLevel = 0.15
 
@@ -365,7 +366,7 @@ final class AppState {
     private func handlePauseDetected() {
         print("🔴 PAUSE DETECTED - starting transcription")
         guard state == .continuousRecording, let pendingURL else {
-            print("🔴 Guard 1 failed - wrong state or no URL")
+            print("🔴 Guard 1 failed - state: \(state), hasURL: \(pendingURL != nil)")
             return
         }
 
@@ -377,47 +378,39 @@ final class AppState {
 
         Task {
             do {
+                print("🔴 [1/7] Stopping chunk recording...")
                 try recorder.stopRecording()
+                print("🔴 [2/7] Finishing file...")
+
                 let chunk = try files.finish(pendingURL)
+                print("🔴 [3/7] File finished, chunk duration: \(chunk.duration)s")
 
                 state = .transcribing
-                let transcript = try await transcriber.transcribe(fileAt: chunk.url, duration: chunk.duration)
+                print("🔴 [4/7] Starting transcription...")
+                let transcript = try await self.transcriber.transcribe(fileAt: chunk.url, duration: chunk.duration)
+                print("🔴 [5/7] Transcription complete: '\(transcript.rawText)'")
 
                 continuousChunks.append(transcript.rawText)
                 sessionTranscript += (sessionTranscript.isEmpty ? "" : " ") + transcript.rawText
 
-                state = .inserting
-                guard inserter.isTrusted() else {
-                    logger.error("Accessibility access lost during continuous session")
-                    state = .continuousRecording
-                    return
-                }
+                // TEMPORARILY SKIP INSERTION TO DEBUG
+                logger.info("Chunk transcribed (insertion disabled for debugging): \(transcript.rawText)")
 
-                let inserted = await inserter.insert(transcript.rawText)
-                if inserted {
-                    logger.info("Chunk inserted: \(transcript.rawText.count) characters")
-                } else {
-                    logger.error("Chunk insertion failed")
-                }
-
+                print("🔴 [7/7] Preparing next chunk...")
                 state = .continuousRecording
                 self.pendingURL = nil
 
-                do {
-                    let historyURLs = Set(self.transcriptHistory.map { $0.recording.url })
-                    try self.files.prepare(preserveURLs: historyURLs)
-                    let newURL = self.files.newURL()
-                    self.pendingURL = newURL
-                    self.chunkStartTime = Date()
-                    try self.recorder.startRecording(to: newURL)
-                    print("🔴 New chunk recording started")
-                } catch {
-                    logger.error("Failed to start new chunk recording: \(error)")
-                    state = .idle
-                }
+                let historyURLs = Set(self.transcriptHistory.map { $0.recording.url })
+                try self.files.prepare(preserveURLs: historyURLs)
+                let newURL = self.files.newURL()
+                self.pendingURL = newURL
+                self.chunkStartTime = Date()
+                try self.recorder.startRecording(to: newURL)
+                print("🔴 ✓ Chunk cycle complete, ready for next dictation")
             } catch {
-                logger.error("Pause-triggered transcription failed: \(error)")
+                print("🔴 ✗ CRASH in handlePauseDetected: \(error)")
                 state = .continuousRecording
+                self.pendingURL = nil
             }
         }
     }
