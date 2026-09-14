@@ -99,7 +99,13 @@ final class AppState {
     }
 
     func stopRecording() async {
-        guard state == .recording else { return }
+        guard state == .recording || state == .continuousRecording else { return }
+
+        if state == .continuousRecording {
+            await stopContinuousRecording()
+            return
+        }
+
         state = .stopping
         audioLevel = 0
         let result: CapturedRecording
@@ -155,12 +161,47 @@ final class AppState {
         }
     }
 
+    private func stopContinuousRecording() async {
+        state = .stopping
+        audioLevel = 0
+
+        do {
+            try recorder.stopRecording()
+            guard let pendingURL else { throw RecordingError.recordingFailed }
+            let finalChunk = try files.finish(pendingURL)
+            self.pendingURL = nil
+
+            state = .transcribing
+            let finalTranscript = try await transcriber.transcribe(fileAt: finalChunk.url, duration: finalChunk.duration)
+
+            continuousChunks.append(finalTranscript.rawText)
+            sessionTranscript += (sessionTranscript.isEmpty ? "" : " ") + finalTranscript.rawText
+
+            lastTranscript = TranscriptionResult(rawText: sessionTranscript, segments: [], duration: 0)
+            addHistoryEntry(transcript: lastTranscript!, recording: finalChunk)
+
+            logger.info("Continuous session completed: \(self.sessionTranscript.count) characters in \(self.continuousChunks.count) chunks")
+
+            state = .idle
+            sessionTranscript = ""
+            continuousChunks = []
+        } catch {
+            logger.error("Continuous session end failed: \(error)")
+            lastError = error as? RecordingError ?? .recordingFailed
+            state = .idle
+            sessionTranscript = ""
+            continuousChunks = []
+        }
+    }
+
     func cancelRecording() {
         attempt = nil
         audioLevel = 0
         recorder.cancelRecording()
         removePendingRecording()
         state = .idle
+        sessionTranscript = ""
+        continuousChunks = []
     }
 
     @discardableResult
@@ -301,11 +342,60 @@ final class AppState {
             if lastSilenceTime == nil {
                 lastSilenceTime = now
             } else if now.timeIntervalSince(lastSilenceTime!) > silenceThreshold {
-                logger.info("Silence detected, would trigger chunk transcription here")
+                logger.info("Silence detected - triggering chunk transcription")
+                handlePauseDetected()
                 lastSilenceTime = nil
             }
         } else {
             lastSilenceTime = nil
+        }
+    }
+
+    private func handlePauseDetected() {
+        guard state == .continuousRecording, let pendingURL else { return }
+
+        Task {
+            do {
+                try recorder.stopRecording()
+                let chunk = try files.finish(pendingURL)
+
+                state = .transcribing
+                let transcript = try await transcriber.transcribe(fileAt: chunk.url, duration: chunk.duration)
+
+                continuousChunks.append(transcript.rawText)
+                sessionTranscript += (sessionTranscript.isEmpty ? "" : " ") + transcript.rawText
+
+                state = .inserting
+                guard inserter.isTrusted() else {
+                    logger.error("Accessibility access lost during continuous session")
+                    state = .continuousRecording
+                    return
+                }
+
+                let inserted = await inserter.insert(transcript.rawText)
+                if inserted {
+                    logger.info("Chunk inserted: \(transcript.rawText.count) characters")
+                } else {
+                    logger.error("Chunk insertion failed")
+                }
+
+                state = .continuousRecording
+                self.pendingURL = nil
+
+                do {
+                    let historyURLs = Set(self.transcriptHistory.map { $0.recording.url })
+                    try self.files.prepare(preserveURLs: historyURLs)
+                    let newURL = self.files.newURL()
+                    self.pendingURL = newURL
+                    try self.recorder.startRecording(to: newURL)
+                } catch {
+                    logger.error("Failed to start new chunk recording: \(error)")
+                    state = .idle
+                }
+            } catch {
+                logger.error("Pause-triggered transcription failed: \(error)")
+                state = .continuousRecording
+            }
         }
     }
 }
