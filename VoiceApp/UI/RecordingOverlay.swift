@@ -143,13 +143,17 @@ struct WaveformView: View {
                     .scaleEffect(y: barScales[index], anchor: .center)
             }
         }
-        .animation(shouldReduceMotion ? nil : .easeOut(duration: 0.02), value: recentLevels)
+        .animation(shouldReduceMotion ? nil : .easeOut(duration: 0.01), value: recentLevels)
         .onAppear {
             recentLevels[0] = audioLevel
         }
         .onChange(of: audioLevel) { _, newLevel in
-            recentLevels.insert(newLevel, at: 0)
-            recentLevels.removeLast()
+            if newLevel < 0.01 {
+                recentLevels = Array(repeating: 0, count: 5)
+            } else {
+                recentLevels.insert(newLevel, at: 0)
+                recentLevels.removeLast()
+            }
         }
     }
 }
