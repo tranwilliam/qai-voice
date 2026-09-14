@@ -8,7 +8,7 @@ This file is the source of truth for work after the v0.1 dictation loop. Work on
 - [x] **P1 — Recording status overlay:** show a clear, non-focus-stealing animation while recording and transcribing.
 - [x] **P1b — Audio-reactive microphone opacity:** brighten the overlay microphone from the live input level and dim it during silence.
 - [x] **P2 — Default developer vocabulary pack:** add QA, IT, cloud, security, and AI terms as recognition hints and safe corrections.
-- [ ] **P2b — Pause-based continuous insertion:** detect silence during recording and auto-insert sections without stopping, then press hotkey to end session.
+- [x] **P2b — Pause-based continuous insertion:** detect silence during recording and auto-insert sections without stopping, then press hotkey to end session.
 - [x] **P3 — Recent transcript history:** retain the last 10–20 transcripts for copy, reinsert, delete, and clear actions.
 - [ ] **P4 — Engine benchmark:** compare Apple Speech, local Whisper, and Parakeet on the same recordings.
 - [ ] **P5 — Optional speech engines:** add another engine only when benchmarks show a meaningful improvement.
@@ -174,6 +174,21 @@ Acceptance criteria:
 - Continue dictating next section, pause → auto-insert
 - Press hotkey → stop recording, full session transcript remains for copy
 - Each section inserts independently; full session stays in memory for manual copy
+
+**What shipped:**
+- Same hotkey triggers continuous mode (toggle between regular and continuous)
+- Silence detection: audioLevel < 0.05 for 1.5 seconds triggers pause detection
+- `handlePauseDetected()` workflow: stop chunk → transcribe → insert → resume recording
+- `sessionTranscript` accumulates all chunks with space separation
+- `continuousChunks` array tracks individual chunks for reference
+- `stopContinuousRecording()` finalizes session: transcribes final chunk, stitches full transcript, makes available for copy
+- Session state clears on cancel or finish
+- Full transcript saved to `lastTranscript` for copy/reinsert operations
+- History integration: completed chunks added to transcriptHistory as single entry at session end
+
+**Known limitation:**
+- UI doesn't explicitly show "continuous" vs "regular" mode; both use same hotkey toggle
+- Could improve by adding menu option to select mode explicitly
 
 ## ✅ P3 — Recent transcript history
 
