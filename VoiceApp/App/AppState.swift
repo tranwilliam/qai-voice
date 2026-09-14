@@ -23,9 +23,9 @@ final class AppState {
     // Continuous recording state
     private var sessionTranscript: String = ""
     private var lastSilenceTime: Date?
-    private let silenceThreshold: TimeInterval = 1.5
+    private let silenceThreshold: TimeInterval = 0.3
     private var continuousChunks: [String] = []
-    private var lastAudioLevelTime: Date = Date()
+    private var wasRecordingSound = false
 
     init(
         recorder: any AudioRecording = AudioRecordingService(),
@@ -58,8 +58,22 @@ final class AppState {
         }
     }
 
+    func startContinuousRecording() async {
+        print("DEBUG: startContinuousRecording called")
+        await startRecording()
+        print("DEBUG: after startRecording, state=\(state == .recording)")
+        if state == .recording {
+            state = .continuousRecording
+            print("🔴 CONTINUOUS MODE STARTED")
+        }
+    }
+
     func startRecording() async {
-        guard state == .idle else { return }
+        print("DEBUG: startRecording called")
+        guard state == .idle else {
+            print("DEBUG: startRecording guard failed, state not idle")
+            return
+        }
         state = .requestingPermission
         lastError = nil
         lastTranscript = nil
@@ -335,24 +349,25 @@ final class AppState {
     }
 
     private func updateSilenceDetection(level: Double) {
-        let silenceThresholdLevel = 0.05
-        let now = Date()
+        let silenceThresholdLevel = 0.15
 
         if level < silenceThresholdLevel {
-            if lastSilenceTime == nil {
-                lastSilenceTime = now
-            } else if now.timeIntervalSince(lastSilenceTime!) > silenceThreshold {
-                logger.info("Silence detected - triggering chunk transcription")
+            if wasRecordingSound {
+                print("🔴 PAUSE DETECTED (level: \(String(format: "%.3f", level)))) - triggering insertion")
                 handlePauseDetected()
-                lastSilenceTime = nil
+                wasRecordingSound = false
             }
         } else {
-            lastSilenceTime = nil
+            wasRecordingSound = true
         }
     }
 
     private func handlePauseDetected() {
-        guard state == .continuousRecording, let pendingURL else { return }
+        logger.info("🔴 handlePauseDetected called")
+        guard state == .continuousRecording, let pendingURL else {
+            logger.error("🔴 Guard failed, returning")
+            return
+        }
 
         Task {
             do {

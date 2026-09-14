@@ -72,8 +72,15 @@ struct MenuBarView: View {
 
             switch appState.state {
             case .idle:
-                Button("Start Dictation") {
-                    Task { await appState.startRecording() }
+                VStack(spacing: 4) {
+                    Button("Start Dictation") {
+                        Task { await appState.startRecording() }
+                    }
+                    Button("Start Continuous Session") {
+                        Task { await appState.startContinuousRecording() }
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 }
             case .requestingPermission:
                 Button("Cancel") {
