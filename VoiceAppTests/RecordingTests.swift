@@ -165,6 +165,38 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(smoothedMicrophoneLevel(previous: 1, input: 0), 0, accuracy: 0.001)
     }
 
+    func testSustainedSilenceAfterSpeechMarksAPause() {
+        var tracker = SpeechPauseTracker()
+        let spoke = Date(timeIntervalSince1970: 10_000)
+        XCTAssertFalse(tracker.consume(level: 0.8, at: spoke, pauseDuration: 1.2))
+
+        let quiet = spoke.addingTimeInterval(0.2)
+        XCTAssertFalse(tracker.consume(level: 0.05, at: quiet, pauseDuration: 1.2))
+        XCTAssertFalse(tracker.consume(level: 0.05, at: quiet.addingTimeInterval(1.19), pauseDuration: 1.2))
+        XCTAssertTrue(tracker.consume(level: 0.05, at: quiet.addingTimeInterval(1.2), pauseDuration: 1.2))
+    }
+
+    func testSilenceBeforeAnySpeechDoesNotMarkAPause() {
+        var tracker = SpeechPauseTracker()
+        let start = Date(timeIntervalSince1970: 10_000)
+        XCTAssertFalse(tracker.consume(level: 0.0, at: start, pauseDuration: 1.2))
+        XCTAssertFalse(tracker.consume(level: 0.0, at: start.addingTimeInterval(5), pauseDuration: 1.2))
+    }
+
+    func testSpeechDuringQuietRestartsThePauseWait() {
+        var tracker = SpeechPauseTracker()
+        let spoke = Date(timeIntervalSince1970: 10_000)
+        XCTAssertFalse(tracker.consume(level: 0.8, at: spoke, pauseDuration: 1.2))
+        let quiet = spoke.addingTimeInterval(0.2)
+        XCTAssertFalse(tracker.consume(level: 0.0, at: quiet, pauseDuration: 1.2))
+        let spokeAgain = quiet.addingTimeInterval(0.8)
+        XCTAssertFalse(tracker.consume(level: 0.9, at: spokeAgain, pauseDuration: 1.2))
+        let quietAgain = spokeAgain.addingTimeInterval(0.1)
+        XCTAssertFalse(tracker.consume(level: 0.0, at: quietAgain, pauseDuration: 1.2))
+        XCTAssertFalse(tracker.consume(level: 0.0, at: quietAgain.addingTimeInterval(1.19), pauseDuration: 1.2))
+        XCTAssertTrue(tracker.consume(level: 0.0, at: quietAgain.addingTimeInterval(1.2), pauseDuration: 1.2))
+    }
+
     func testMicrophoneDecibelsMapIntoUsableLevelRange() {
         XCTAssertEqual(normalizedMicrophoneLevel(decibels: -60), 0, accuracy: 0.001)
         XCTAssertEqual(normalizedMicrophoneLevel(decibels: -32.5), 0.5, accuracy: 0.001)
@@ -457,15 +489,162 @@ final class RecordingTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: recording.url.path))
     }
 
+    func testContinuousPauseInsertsThatChunkAndKeepsListening() async throws {
+        let (app, recorder, transcriber, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let clock = ManualClock(Date(timeIntervalSince1970: 20_000))
+        app.now = { clock.date }
+        transcriber.resultText = "first sentence"
+        await app.startContinuousRecording()
+
+        recorder.emitLevel(0.8)
+        clock.advance(0.4)
+        recorder.emitLevel(0.0)
+        XCTAssertEqual(recorder.startCount, 1)
+        XCTAssertEqual(inserter.insertCallCount, 0)
+
+        clock.advance(0.6)
+        recorder.emitLevel(0.0)
+        await waitUntil("the paused chunk is inserted") { inserter.insertCallCount == 1 }
+
+        XCTAssertEqual(inserter.insertedTexts, ["first sentence "])
+        XCTAssertEqual(app.lastTranscript?.rawText, "first sentence")
+        XCTAssertEqual(app.state, .continuousRecording)
+        XCTAssertEqual(recorder.startCount, 2)
+        XCTAssertTrue(recorder.isRecording)
+        app.shutdown()
+    }
+
+    func testContinuousShortSilenceDoesNotInsertOrCut() async throws {
+        let (app, recorder, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let clock = ManualClock(Date(timeIntervalSince1970: 20_000))
+        app.now = { clock.date }
+        await app.startContinuousRecording()
+
+        recorder.emitLevel(0.8)
+        clock.advance(0.1)
+        recorder.emitLevel(0.0)
+        clock.advance(0.4)
+        recorder.emitLevel(0.0)
+        await Task.yield()
+
+        XCTAssertEqual(recorder.startCount, 1)
+        XCTAssertTrue(recorder.isRecording)
+        XCTAssertEqual(inserter.insertCallCount, 0)
+        XCTAssertNil(app.lastTranscript)
+        XCTAssertEqual(app.state, .continuousRecording)
+        app.shutdown()
+    }
+
+    func testContinuousChunksInsertInSpokenOrder() async throws {
+        let (app, recorder, transcriber, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let clock = ManualClock(Date(timeIntervalSince1970: 30_000))
+        app.now = { clock.date }
+        transcriber.pauseTranscription = true
+        await app.startContinuousRecording()
+
+        emitContinuousPause(recorder, clock: clock)
+        emitContinuousPause(recorder, clock: clock)
+        await waitUntil("both chunks are waiting on transcription") {
+            transcriber.transcriptionContinuations.count == 2
+        }
+
+        transcriber.resolveNext("second sentence", at: 1)
+        await Task.yield()
+        XCTAssertEqual(inserter.insertCallCount, 0)
+
+        transcriber.resolveNext("first sentence")
+        await waitUntil("chunks insert in spoken order") { inserter.insertCallCount == 2 }
+
+        XCTAssertEqual(inserter.insertedTexts, ["first sentence ", "second sentence "])
+        XCTAssertEqual(app.lastTranscript?.rawText, "first sentence second sentence")
+        XCTAssertEqual(app.state, .continuousRecording)
+        app.shutdown()
+    }
+
+    func testEndingContinuousSessionInsertsTrailingSpeech() async throws {
+        let (app, recorder, transcriber, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let clock = ManualClock(Date(timeIntervalSince1970: 40_000))
+        app.now = { clock.date }
+        transcriber.resultText = "still talking"
+        await app.startContinuousRecording()
+        recorder.emitLevel(0.8)
+
+        await app.stopRecording()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(inserter.insertedTexts, ["still talking "])
+        XCTAssertEqual(app.lastTranscript?.rawText, "still talking")
+        XCTAssertNil(app.lastError)
+        app.shutdown()
+    }
+
+    func testContinuousPauseKeepsListeningWhenAccessibilityIsDenied() async throws {
+        let (app, recorder, transcriber, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let clock = ManualClock(Date(timeIntervalSince1970: 50_000))
+        app.now = { clock.date }
+        inserter.trusted = false
+        transcriber.resultText = "saved locally"
+        await app.startContinuousRecording()
+
+        emitContinuousPause(recorder, clock: clock)
+        await waitUntil("the chunk is transcribed") { app.lastTranscript != nil }
+
+        XCTAssertEqual(app.state, .continuousRecording)
+        XCTAssertEqual(app.lastError, .accessibilityPermissionDenied)
+        XCTAssertEqual(app.lastTranscript?.rawText, "saved locally")
+        XCTAssertEqual(inserter.insertCallCount, 0)
+        XCTAssertEqual(inserter.promptCount, 1)
+        XCTAssertEqual(recorder.startCount, 2)
+
+        transcriber.resultText = "second chunk"
+        emitContinuousPause(recorder, clock: clock)
+        await waitUntil("the second chunk is kept") { app.lastTranscript?.rawText == "saved locally second chunk" }
+
+        XCTAssertEqual(inserter.promptCount, 1)
+        XCTAssertEqual(app.state, .continuousRecording)
+        app.shutdown()
+    }
+
+    func testDictationAsksForAccessibilityAndKeepsListening() async throws {
+        let (app, _, _, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        inserter.trusted = false
+
+        await app.startContinuousRecording()
+
+        XCTAssertEqual(app.state, .continuousRecording)
+        XCTAssertEqual(inserter.promptCount, 1)
+        XCTAssertEqual(app.lastError, .accessibilityPermissionDenied)
+        app.shutdown()
+    }
+
     func testToggleDictationFromIdleStartsRecording() async throws {
         let (app, recorder, _, _, directory) = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
 
         await app.toggleDictation().value
 
-        XCTAssertEqual(app.state, .recording)
+        XCTAssertEqual(app.state, .continuousRecording)
         XCTAssertEqual(recorder.startCount, 1)
         app.shutdown()
+    }
+
+    func testToggleDictationStopsTheSessionAndInserts() async throws {
+        let (app, _, transcriber, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.resultText = "toggled off"
+        await app.toggleDictation().value
+
+        await app.toggleDictation().value
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(app.lastTranscript?.rawText, "toggled off")
+        XCTAssertEqual(inserter.insertedTexts, ["toggled off "])
     }
 
     func testToggleDictationFromRecordingStopsAndTranscribes() async throws {
@@ -780,6 +959,22 @@ final class RecordingTests: XCTestCase {
         XCTFail("The controller did not start transcription")
     }
 
+    private func emitContinuousPause(_ recorder: TestRecorder, clock: ManualClock) {
+        recorder.emitLevel(0.8)
+        clock.advance(0.2)
+        recorder.emitLevel(0.0)
+        clock.advance(0.6)
+        recorder.emitLevel(0.0)
+    }
+
+    private func waitUntil(_ description: String, _ condition: () -> Bool) async {
+        for _ in 0..<2000 {
+            if condition() { return }
+            await Task.yield()
+        }
+        XCTFail(description)
+    }
+
     private func waitForInsert(_ inserter: FakeInserter) async {
         for _ in 0..<1000 {
             if inserter.insertContinuation != nil { return }
@@ -787,6 +982,12 @@ final class RecordingTests: XCTestCase {
         }
         XCTFail("The controller did not attempt text insertion")
     }
+}
+
+private final class ManualClock {
+    var date: Date
+    init(_ date: Date) { self.date = date }
+    func advance(_ seconds: TimeInterval) { date = date.addingTimeInterval(seconds) }
 }
 
 // Only the external microphone boundary is replaced. Audio validation and file
@@ -853,7 +1054,10 @@ private final class FakeTranscriber: SpeechTranscribing {
     var resultText = "hello world"
     var transcribeCallCount = 0
     var pauseTranscription = false
-    var transcriptionContinuation: CheckedContinuation<TranscriptionResult, Error>?
+    var transcriptionContinuations: [CheckedContinuation<TranscriptionResult, Error>] = []
+    var transcriptionContinuation: CheckedContinuation<TranscriptionResult, Error>? {
+        transcriptionContinuations.first
+    }
 
     func requestAuthorization() async -> Bool {
         authorizationGranted
@@ -862,20 +1066,25 @@ private final class FakeTranscriber: SpeechTranscribing {
     func transcribe(fileAt url: URL, duration: TimeInterval) async throws -> TranscriptionResult {
         transcribeCallCount += 1
         if pauseTranscription {
-            return try await withCheckedThrowingContinuation { transcriptionContinuation = $0 }
+            return try await withCheckedThrowingContinuation { transcriptionContinuations.append($0) }
         }
         if let transcribeError { throw transcribeError }
         return TranscriptionResult(rawText: resultText, segments: [], duration: duration)
     }
 
-    func resolveTranscription(_ result: Result<TranscriptionResult, RecordingError>) {
+    func resolveTranscription(_ result: Result<TranscriptionResult, RecordingError>, at index: Int = 0) {
+        guard transcriptionContinuations.indices.contains(index) else { return }
+        let continuation = transcriptionContinuations.remove(at: index)
         switch result {
         case .success(let value):
-            transcriptionContinuation?.resume(returning: value)
+            continuation.resume(returning: value)
         case .failure(let error):
-            transcriptionContinuation?.resume(throwing: error)
+            continuation.resume(throwing: error)
         }
-        transcriptionContinuation = nil
+    }
+
+    func resolveNext(_ text: String, at index: Int = 0) {
+        resolveTranscription(.success(TranscriptionResult(rawText: text, segments: [], duration: 0.1)), at: index)
     }
 }
 
@@ -889,6 +1098,7 @@ private final class FakeInserter: TextInserting {
     var insertContinuation: CheckedContinuation<Bool, Never>?
     var copyCallCount = 0
     var lastCopiedText: String?
+    var insertedTexts: [String] = []
 
     func isTrusted() -> Bool {
         trusted
@@ -900,6 +1110,7 @@ private final class FakeInserter: TextInserting {
 
     func insert(_ text: String) async -> Bool {
         insertCallCount += 1
+        insertedTexts.append(text)
         if pauseInsert {
             return await withCheckedContinuation { insertContinuation = $0 }
         }

@@ -176,19 +176,16 @@ Acceptance criteria:
 - Each section inserts independently; full session stays in memory for manual copy
 
 **What shipped:**
-- Same hotkey triggers continuous mode (toggle between regular and continuous)
-- Silence detection: audioLevel < 0.05 for 1.5 seconds triggers pause detection
-- `handlePauseDetected()` workflow: stop chunk → transcribe → insert → resume recording
-- `sessionTranscript` accumulates all chunks with space separation
-- `continuousChunks` array tracks individual chunks for reference
-- `stopContinuousRecording()` finalizes session: transcribes final chunk, stitches full transcript, makes available for copy
-- Session state clears on cancel or finish
-- Full transcript saved to `lastTranscript` for copy/reinsert operations
-- History integration: completed chunks added to transcriptHistory as single entry at session end
+- Option+Space and **Start Dictation** both run continuous mode. There is no separate one-shot command.
+- A pause is 0.6 seconds below input level 0.15, and only after speech. A shorter quiet stretch keeps recording.
+- On that pause the current chunk is transcribed and pasted, with a trailing space so the next chunk does not run into it. The microphone starts again immediately, so speech during transcription is kept for the next chunk.
+- Chunks paste in spoken order even when a later chunk finishes transcribing first.
+- **Stop Dictation** transcribes and pastes whatever was still being recorded.
+- If Accessibility is off, the session keeps listening, the text stays in the menu, and the permission prompt is shown once.
+- The full session transcript is one history entry when the session ends.
 
 **Known limitation:**
-- UI doesn't explicitly show "continuous" vs "regular" mode; both use same hotkey toggle
-- Could improve by adding menu option to select mode explicitly
+- The pause length is fixed at 0.6 seconds.
 
 ## ✅ P3 — Recent transcript history
 

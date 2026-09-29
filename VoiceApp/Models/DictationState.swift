@@ -12,7 +12,7 @@ enum DictationState {
         case .idle: "Ready"
         case .requestingPermission: "Waiting for Microphone Access"
         case .recording: "Recording…"
-        case .continuousRecording: "Continuous Session…"
+        case .continuousRecording: "Recording…"
         case .stopping: "Finishing Recording…"
         case .transcribing: "Transcribing…"
         case .inserting: "Inserting…"

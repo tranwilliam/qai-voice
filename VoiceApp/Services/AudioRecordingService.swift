@@ -24,6 +24,37 @@ func smoothedMicrophoneLevel(previous: Double, input: Double) -> Double {
     return boundedPrevious + ((boundedInput - boundedPrevious) * response)
 }
 
+struct SpeechPauseTracker: Equatable {
+    static let silenceLevel = 0.15
+    /// A breath is shorter than this. A deliberate pause is not.
+    static let pauseDuration: TimeInterval = 0.6
+
+    private var heardSpeech = false
+    private var silenceBeganAt: Date?
+
+    mutating func consume(
+        level: Double,
+        at now: Date,
+        silenceLevel: Double = SpeechPauseTracker.silenceLevel,
+        pauseDuration: TimeInterval = SpeechPauseTracker.pauseDuration
+    ) -> Bool {
+        if level >= silenceLevel {
+            heardSpeech = true
+            silenceBeganAt = nil
+            return false
+        }
+        guard heardSpeech else { return false }
+        guard let started = silenceBeganAt else {
+            silenceBeganAt = now
+            return false
+        }
+        guard now.timeIntervalSince(started) >= pauseDuration else { return false }
+        heardSpeech = false
+        silenceBeganAt = nil
+        return true
+    }
+}
+
 @MainActor
 final class AudioRecordingService: NSObject, AudioRecording, AVAudioRecorderDelegate {
     var onFailure: (@MainActor (RecordingError) -> Void)?

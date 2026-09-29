@@ -19,14 +19,15 @@ final class AppState {
     private var pendingURL: URL?
     private var attempt: UUID?
     private let logger = Logger(subsystem: "com.williamt.voiceapp", category: "Recording")
+    var now: () -> Date = { Date() }
 
-    // Continuous recording state
+    // Continuous recording state. Chunks transcribe concurrently and insert in spoken order.
     private var sessionTranscript: String = ""
-    private var lastSilenceTime: Date?
-    private let silenceThreshold: TimeInterval = 0.3
     private var continuousChunks: [String] = []
-    private var wasRecordingSound = false
-    private var chunkStartTime: Date?
+    private var pauseTracker = SpeechPauseTracker()
+    private var continuousSession: UUID?
+    private var deliveryChain: Task<Void, Never> = Task {}
+    private var didPromptForAccessibility = false
 
     init(
         recorder: any AudioRecording = AudioRecordingService(),
@@ -49,23 +50,23 @@ final class AppState {
         }
         recorder.onLevel = { [weak self] level in
             guard let self else { return }
-            if self.state == .recording || self.state == .continuousRecording {
-                self.audioLevel = smoothedMicrophoneLevel(previous: self.audioLevel, input: level)
-
-                if self.state == .continuousRecording {
-                    self.updateSilenceDetection(level: level)
-                }
-            }
+            guard self.state == .recording || self.state == .continuousRecording else { return }
+            self.audioLevel = smoothedMicrophoneLevel(previous: self.audioLevel, input: level)
+            guard self.state == .continuousRecording else { return }
+            guard self.pauseTracker.consume(level: level, at: self.now()) else { return }
+            self.cutChunkForPause()
         }
     }
 
     func startContinuousRecording() async {
         await startRecording()
-        if state == .recording {
-            state = .continuousRecording
-            chunkStartTime = Date()
-            print("🔴 CONTINUOUS MODE STARTED")
-        }
+        guard state == .recording else { return }
+        continuousSession = UUID()
+        pauseTracker = SpeechPauseTracker()
+        sessionTranscript = ""
+        continuousChunks = []
+        deliveryChain = Task {}
+        state = .continuousRecording
     }
 
     func startRecording() async {
@@ -77,6 +78,7 @@ final class AppState {
         state = .requestingPermission
         lastError = nil
         lastTranscript = nil
+        didPromptForAccessibility = false
         audioLevel = 0
         let currentAttempt = UUID()
         attempt = currentAttempt
@@ -106,6 +108,7 @@ final class AppState {
             pendingURL = url
             try recorder.startRecording(to: url)
             state = .recording
+            requireAccessibility()
             logger.info("Audio recording started")
         } catch {
             fail(error as? RecordingError ?? .fileAccess)
@@ -156,8 +159,7 @@ final class AppState {
 
         state = .inserting
         guard inserter.isTrusted() else {
-            inserter.promptForTrust()
-            lastError = .accessibilityPermissionDenied
+            requireAccessibility()
             state = .idle
             logger.error("Text insertion failed: Accessibility access not granted")
             return
@@ -166,6 +168,9 @@ final class AppState {
         // If shutdown/cancel ran while we were awaiting, don't resurrect stale results.
         guard state == .inserting else { return }
         if inserted {
+            if lastError == .accessibilityPermissionDenied {
+                lastError = nil
+            }
             state = .idle
             logger.info("Text inserted: \(transcript.rawText.count, privacy: .public) characters")
         } else {
@@ -176,46 +181,41 @@ final class AppState {
     }
 
     private func stopContinuousRecording() async {
+        guard let session = continuousSession else {
+            state = .idle
+            return
+        }
         state = .stopping
         audioLevel = 0
+        pauseTracker = SpeechPauseTracker()
 
         do {
             try recorder.stopRecording()
             guard let pendingURL else { throw RecordingError.recordingFailed }
             let finalChunk = try files.finish(pendingURL)
             self.pendingURL = nil
-
-            state = .transcribing
-            let finalTranscript = try await transcriber.transcribe(fileAt: finalChunk.url, duration: finalChunk.duration)
-
-            continuousChunks.append(finalTranscript.rawText)
-            sessionTranscript += (sessionTranscript.isEmpty ? "" : " ") + finalTranscript.rawText
-
-            lastTranscript = TranscriptionResult(rawText: sessionTranscript, segments: [], duration: 0)
-            addHistoryEntry(transcript: lastTranscript!, recording: finalChunk)
-
-            logger.info("Continuous session completed: \(self.sessionTranscript.count) characters in \(self.continuousChunks.count) chunks")
-
-            state = .idle
-            sessionTranscript = ""
-            continuousChunks = []
+            publishChunk(finalChunk, session: session)
+            await finishContinuousSession(session: session, recording: finalChunk)
         } catch {
             logger.error("Continuous session end failed: \(error)")
             lastError = error as? RecordingError ?? .recordingFailed
-            state = .idle
+            continuousSession = nil
             sessionTranscript = ""
             continuousChunks = []
+            state = .idle
         }
     }
 
     func cancelRecording() {
         attempt = nil
         audioLevel = 0
+        continuousSession = nil
+        pauseTracker = SpeechPauseTracker()
+        sessionTranscript = ""
+        continuousChunks = []
         recorder.cancelRecording()
         removePendingRecording()
         state = .idle
-        sessionTranscript = ""
-        continuousChunks = []
     }
 
     @discardableResult
@@ -223,7 +223,7 @@ final class AppState {
         Task {
             switch state {
             case .idle:
-                await startRecording()
+                await startContinuousRecording()
             case .recording, .continuousRecording:
                 await stopRecording()
             case .requestingPermission, .stopping, .transcribing, .inserting:
@@ -321,6 +321,7 @@ final class AppState {
         lastError = error
         attempt = nil
         audioLevel = 0
+        continuousSession = nil
         recorder.cancelRecording()
         removePendingRecording()
         state = .idle
@@ -349,69 +350,122 @@ final class AppState {
     }
 
 
-    private func updateSilenceDetection(level: Double) {
-        let silenceThresholdLevel = 0.15
-
-        if level < silenceThresholdLevel {
-            if wasRecordingSound {
-                print("🔴 PAUSE DETECTED (level: \(String(format: "%.3f", level)))) - triggering insertion")
-                handlePauseDetected()
-                wasRecordingSound = false
+    private func cutChunkForPause() {
+        guard state == .continuousRecording, let url = pendingURL, let session = continuousSession else { return }
+        do {
+            try recorder.stopRecording()
+            let chunk = try files.finish(url)
+            pendingURL = nil
+            publishChunk(chunk, session: session)
+            guard restartListening(session: session) else {
+                lastError = .cannotStart
+                state = .stopping
+                Task { await self.finishContinuousSession(session: session, recording: chunk) }
+                return
             }
-        } else {
-            wasRecordingSound = true
+        } catch {
+            lastError = (error as? RecordingError) ?? .recordingFailed
+            continuousSession = nil
+            audioLevel = 0
+            state = .idle
+            logger.error("Continuous chunk failed: \(error)")
         }
     }
 
-    private func handlePauseDetected() {
-        print("🔴 PAUSE DETECTED - starting transcription")
-        guard state == .continuousRecording, let pendingURL else {
-            print("🔴 Guard 1 failed - state: \(state), hasURL: \(pendingURL != nil)")
-            return
+    private func restartListening(session: UUID) -> Bool {
+        guard continuousSession == session, state == .continuousRecording else { return false }
+        do {
+            let url = files.newURL()
+            pendingURL = url
+            pauseTracker = SpeechPauseTracker()
+            try recorder.startRecording(to: url)
+            return true
+        } catch {
+            pendingURL = nil
+            return false
         }
+    }
 
-        let chunkDuration = chunkStartTime.map { Date().timeIntervalSince($0) } ?? 0
-        guard chunkDuration > 0.5 else {
-            print("🔴 Chunk too short (\(chunkDuration)s) - skipping")
-            return
+    private func publishChunk(_ chunk: CapturedRecording, session: UUID) {
+        let transcription = Task { @MainActor () -> String? in
+            guard self.continuousSession == session else { return nil }
+            return await self.transcribeChunk(chunk)
         }
+        let previous = deliveryChain
+        deliveryChain = Task { @MainActor in
+            let text = await transcription.value
+            await previous.value
+            guard self.continuousSession == session else { return }
+            await self.deliverChunk(text, session: session)
+        }
+    }
 
-        Task {
-            do {
-                print("🔴 [1/7] Stopping chunk recording...")
-                try recorder.stopRecording()
-                print("🔴 [2/7] Finishing file...")
-
-                let chunk = try files.finish(pendingURL)
-                print("🔴 [3/7] File finished, chunk duration: \(chunk.duration)s")
-
-                state = .transcribing
-                print("🔴 [4/7] Starting transcription...")
-                let transcript = try await self.transcriber.transcribe(fileAt: chunk.url, duration: chunk.duration)
-                print("🔴 [5/7] Transcription complete: '\(transcript.rawText)'")
-
-                continuousChunks.append(transcript.rawText)
-                sessionTranscript += (sessionTranscript.isEmpty ? "" : " ") + transcript.rawText
-
-                // TEMPORARILY SKIP INSERTION TO DEBUG
-                logger.info("Chunk transcribed (insertion disabled for debugging): \(transcript.rawText)")
-
-                print("🔴 [7/7] Preparing next chunk...")
-                state = .continuousRecording
-                self.pendingURL = nil
-
-                let historyURLs = Set(self.transcriptHistory.map { $0.recording.url })
-                try self.files.prepare(preserveURLs: historyURLs)
-                let newURL = self.files.newURL()
-                self.pendingURL = newURL
-                self.chunkStartTime = Date()
-                try self.recorder.startRecording(to: newURL)
-                print("🔴 ✓ Chunk cycle complete, ready for next dictation")
-            } catch {
-                print("🔴 ✗ CRASH in handlePauseDetected: \(error)")
-                state = .continuousRecording
-                self.pendingURL = nil
+    private func transcribeChunk(_ chunk: CapturedRecording) async -> String? {
+        do {
+            let result = try await transcriber.transcribe(fileAt: chunk.url, duration: chunk.duration)
+            let trimmed = result.rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch let error as RecordingError {
+            if error != .noSpeechDetected && error != .emptyRecording {
+                lastError = error
             }
+            return nil
+        } catch {
+            lastError = .transcriptionFailed
+            return nil
         }
+    }
+
+    private func deliverChunk(_ text: String?, session: UUID) async {
+        guard continuousSession == session, let text else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        continuousChunks.append(trimmed)
+        sessionTranscript = sessionTranscript.isEmpty ? trimmed : sessionTranscript + " " + trimmed
+        lastTranscript = TranscriptionResult(rawText: sessionTranscript, segments: [], duration: 0)
+        guard state == .continuousRecording || state == .stopping else { return }
+        await insertChunk(trimmed, session: session)
+    }
+
+    private func insertChunk(_ text: String, session: UUID) async {
+        guard continuousSession == session else { return }
+        guard inserter.isTrusted() else {
+            requireAccessibility()
+            return
+        }
+        let pasted = text.hasSuffix(" ") || text.hasSuffix("\n") ? text : text + " "
+        let inserted = await inserter.insert(pasted)
+        guard continuousSession == session else { return }
+        if inserted {
+            if lastError == .insertionFailed || lastError == .accessibilityPermissionDenied {
+                lastError = nil
+            }
+        } else {
+            lastError = .insertionFailed
+        }
+    }
+
+    private func requireAccessibility() {
+        guard !inserter.isTrusted() else { return }
+        if !didPromptForAccessibility {
+            inserter.promptForTrust()
+            didPromptForAccessibility = true
+        }
+        lastError = .accessibilityPermissionDenied
+    }
+
+    private func finishContinuousSession(session: UUID, recording: CapturedRecording) async {
+        await deliveryChain.value
+        guard continuousSession == session else { return }
+        if let transcript = lastTranscript {
+            addHistoryEntry(transcript: transcript, recording: recording)
+        }
+        logger.info("Continuous session completed: \(self.sessionTranscript.count, privacy: .public) characters in \(self.continuousChunks.count, privacy: .public) chunks")
+        continuousSession = nil
+        sessionTranscript = ""
+        continuousChunks = []
+        pauseTracker = SpeechPauseTracker()
+        didPromptForAccessibility = false
+        state = .idle
     }
 }

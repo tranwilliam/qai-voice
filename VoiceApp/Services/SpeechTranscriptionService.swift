@@ -86,15 +86,21 @@ final class AppleSpeechTranscriptionService: SpeechTranscribing {
         case .authorized:
             return true
         case .notDetermined:
-            return await withCheckedContinuation { continuation in
-                SFSpeechRecognizer.requestAuthorization { status in
-                    continuation.resume(returning: status == .authorized)
-                }
-            }
+            // TCC delivers this callback off the main thread. Resuming the
+            // main-actor continuation from that callback traps and quits the app.
+            return await Self.requestSpeechAuthorization()
         case .denied, .restricted:
             return false
         @unknown default:
             return false
+        }
+    }
+
+    private nonisolated static func requestSpeechAuthorization() async -> Bool {
+        await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { status in
+                continuation.resume(returning: status == .authorized)
+            }
         }
     }
 
