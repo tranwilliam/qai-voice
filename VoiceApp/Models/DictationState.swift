@@ -1,6 +1,17 @@
+import Foundation
+
 func aboutVersionLabel(marketingVersion: String?) -> String {
     let trimmed = marketingVersion?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return "Version \(trimmed.isEmpty ? "1.0" : trimmed)"
+}
+
+enum AboutQAI {
+    static let creator = "William Tran"
+    static let credit = "Created by \(creator)"
+    static let siteLabel = "theQAIguy.com"
+    static let siteURL = URL(string: "https://theqaiguy.com")!
+    static let linkedInHandle = "williamtranqa"
+    static let linkedInURL = URL(string: "https://www.linkedin.com/in/\(linkedInHandle)")!
 }
 
 enum DictationState {

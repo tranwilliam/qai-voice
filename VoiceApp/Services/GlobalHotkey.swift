@@ -1,4 +1,5 @@
 import Carbon.HIToolbox
+import CoreGraphics
 import OSLog
 
 struct HeldModifiers: OptionSet, Equatable {
@@ -41,7 +42,28 @@ struct DictationShortcut: Equatable, Codable {
     }
 }
 
+func isModifierKeyCode(_ keyCode: UInt32) -> Bool {
+    switch Int(keyCode) {
+    case kVK_Command, kVK_Shift, kVK_CapsLock, kVK_Option, kVK_Control,
+         kVK_RightCommand, kVK_RightShift, kVK_RightOption, kVK_RightControl,
+         kVK_Function:
+        return true
+    default:
+        return false
+    }
+}
+
+func heldModifiers(from flags: CGEventFlags) -> HeldModifiers {
+    var held = HeldModifiers()
+    if flags.contains(.maskCommand) { held.insert(.command) }
+    if flags.contains(.maskAlternate) { held.insert(.option) }
+    if flags.contains(.maskControl) { held.insert(.control) }
+    if flags.contains(.maskShift) { held.insert(.shift) }
+    return held
+}
+
 func makeDictationShortcut(keyCode: UInt32, held: HeldModifiers) -> DictationShortcut? {
+    guard !isModifierKeyCode(keyCode) else { return nil }
     var carbon: UInt32 = 0
     if held.contains(.command) { carbon |= UInt32(cmdKey) }
     if held.contains(.option) { carbon |= UInt32(optionKey) }
@@ -101,6 +123,7 @@ final class GlobalHotkeyMonitor {
     private nonisolated(unsafe) var eventHandlerRef: EventHandlerRef?
     private var onPress: (() -> Void)?
     private var shortcut = DictationShortcut.default
+    private var captureSuspended = false
     private let logger = Logger(subsystem: "com.williamt.voiceapp", category: "Hotkey")
 
     private static let hotKeyID = EventHotKeyID(signature: fourCharCode("Voic"), id: 1)
@@ -130,6 +153,19 @@ final class GlobalHotkeyMonitor {
             return noErr
         }, 1, &eventType, Unmanaged.passUnretained(self).toOpaque(), &eventHandlerRef)
 
+        _ = register(shortcut)
+    }
+
+    func suspendForCapture() {
+        guard !captureSuspended else { return }
+        captureSuspended = true
+        unregisterHotKey()
+    }
+
+    func resumeAfterCapture() {
+        guard captureSuspended else { return }
+        captureSuspended = false
+        guard hotKeyRef == nil else { return }
         _ = register(shortcut)
     }
 

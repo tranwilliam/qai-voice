@@ -44,7 +44,9 @@ struct MenuBarView: View {
             Divider()
             shortcutSection
             Divider()
-            aboutSection
+            Button("About QAI") {
+                appState.showAbout()
+            }
             Divider()
             Button("Quit QAI") {
                 NSApplication.shared.terminate(nil)
@@ -66,19 +68,6 @@ struct MenuBarView: View {
                 appState.beginChoosingShortcut()
             }
             .disabled(appState.isChoosingShortcut)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-    }
-
-    private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("About QAI")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(aboutVersionLabel(marketingVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String))
-                .font(.caption2)
-                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 8)
@@ -210,4 +199,93 @@ struct MenuBarView: View {
         .padding(.horizontal, 8)
     }
 
+}
+
+private struct LinkedInMark: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(red: 10 / 255, green: 102 / 255, blue: 194 / 255))
+            Text("in")
+                .font(.system(size: 16, weight: .heavy))
+                .foregroundStyle(.white)
+                .tracking(-0.8)
+                .offset(y: -0.5)
+        }
+        .frame(width: 30, height: 30)
+        .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+    }
+}
+
+struct AboutQAIView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(colorScheme == .dark ? 0.32 : 0.24))
+                    .frame(width: 148, height: 148)
+                    .blur(radius: 22)
+                Image(nsImage: aboutMascotImage())
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: 168, height: 168)
+                    .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.16), radius: 18, y: 10)
+                    .accessibilityLabel("QAI")
+            }
+            .padding(.bottom, 4)
+
+            Text("QAI")
+                .font(.system(size: 34, weight: .semibold, design: .rounded))
+
+            Text(aboutVersionLabel(marketingVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            Text(AboutQAI.credit)
+                .font(.body)
+                .padding(.top, 16)
+
+            Button(AboutQAI.siteLabel) {
+                NSWorkspace.shared.open(AboutQAI.siteURL)
+            }
+            .buttonStyle(.link)
+            .font(.body.weight(.medium))
+            .accessibilityLabel(AboutQAI.siteLabel)
+
+            Button {
+                NSWorkspace.shared.open(AboutQAI.linkedInURL)
+            } label: {
+                LinkedInMark()
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 10)
+            .accessibilityLabel("LinkedIn @\(AboutQAI.linkedInHandle)")
+        }
+        .padding(.top, 48)
+        .padding(.bottom, 36)
+        .padding(.horizontal, 40)
+        .frame(width: 340, height: 460)
+        .background(aboutBackground)
+    }
+
+    private func aboutMascotImage() -> NSImage {
+        if let url = Bundle.main.url(forResource: "QAI", withExtension: "icns"),
+           let image = NSImage(contentsOf: url) {
+            return image
+        }
+        return NSApp.applicationIconImage
+    }
+
+    private var aboutBackground: some View {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color(red: 0.20, green: 0.12, blue: 0.08), Color(red: 0.11, green: 0.09, blue: 0.08)]
+                : [Color(red: 1, green: 0.985, blue: 0.97), Color(red: 1, green: 0.94, blue: 0.89)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
 }

@@ -1,5 +1,6 @@
 import AVFoundation
 import Carbon.HIToolbox
+import CoreGraphics
 import XCTest
 
 @MainActor
@@ -177,8 +178,15 @@ final class RecordingTests: XCTestCase {
         XCTAssertNil(makeDictationShortcut(keyCode: space, held: []))
         XCTAssertNil(makeDictationShortcut(keyCode: space, held: [.shift]))
         XCTAssertNil(makeDictationShortcut(keyCode: UInt32(kVK_Escape), held: [.option]))
+        XCTAssertNil(makeDictationShortcut(keyCode: UInt32(kVK_Option), held: [.option]))
         let controlD = makeDictationShortcut(keyCode: UInt32(kVK_ANSI_D), held: [.control, .shift])
         XCTAssertEqual(controlD?.label, "⌃⇧ D")
+    }
+
+    func testOptionSpaceEventFlagsMatchTheDefaultShortcut() {
+        let leftOption = CGEventFlags(rawValue: 524320)
+        let held = heldModifiers(from: leftOption)
+        XCTAssertEqual(makeDictationShortcut(keyCode: UInt32(kVK_Space), held: held), .default)
     }
 
     func testShortcutRoundTripsThroughDefaults() {
@@ -224,6 +232,14 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(aboutVersionLabel(marketingVersion: " 1.0 "), "Version 1.0")
         XCTAssertEqual(aboutVersionLabel(marketingVersion: nil), "Version 1.0")
         XCTAssertEqual(aboutVersionLabel(marketingVersion: "  "), "Version 1.0")
+    }
+
+    func testAboutCreditsNameTheCreatorAndSite() {
+        XCTAssertEqual(AboutQAI.credit, "Created by William Tran")
+        XCTAssertEqual(AboutQAI.siteLabel, "theQAIguy.com")
+        XCTAssertEqual(AboutQAI.siteURL.absoluteString, "https://theqaiguy.com")
+        XCTAssertEqual(AboutQAI.linkedInHandle, "williamtranqa")
+        XCTAssertEqual(AboutQAI.linkedInURL.absoluteString, "https://www.linkedin.com/in/williamtranqa")
     }
 
     func testPunctuationAloneIsNotDictatedSpeech() {

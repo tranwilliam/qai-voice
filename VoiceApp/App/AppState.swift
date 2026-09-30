@@ -15,6 +15,7 @@ final class AppState {
     private(set) var isChoosingShortcut = false
     var onShortcutChange: ((DictationShortcut) -> Bool)?
     var presentShortcutCapture: (() -> Void)?
+    var presentAbout: (() -> Void)?
 
     private let recorder: any AudioRecording
     private let transcriber: any SpeechTranscribing
@@ -64,6 +65,10 @@ final class AppState {
             guard self.pauseTracker.consume(level: level, at: self.now()) else { return }
             self.cutChunkForPause()
         }
+    }
+
+    func showAbout() {
+        presentAbout?()
     }
 
     func beginChoosingShortcut() {
