@@ -85,6 +85,12 @@ func recordingOverlayPanelFrame(in visibleFrame: CGRect) -> CGRect {
     return CGRect(x: x, y: y, width: panelWidth, height: panelHeight)
 }
 
+func isDictatedSpeech(_ text: String) -> Bool {
+    text.unicodeScalars.contains { scalar in
+        CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar)
+    }
+}
+
 func overlayPhase(previous: DictationState, current: DictationState, lastError: RecordingError?) -> OverlayPhase {
     switch current {
     case .recording, .continuousRecording:

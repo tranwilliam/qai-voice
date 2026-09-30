@@ -1,4 +1,5 @@
 import AVFoundation
+import Carbon.HIToolbox
 import XCTest
 
 @MainActor
@@ -163,6 +164,73 @@ final class RecordingTests: XCTestCase {
     func testMicrophoneLevelUsesFastAttackAndImmediateDecay() {
         XCTAssertEqual(smoothedMicrophoneLevel(previous: 0, input: 1), 0.6, accuracy: 0.001)
         XCTAssertEqual(smoothedMicrophoneLevel(previous: 1, input: 0), 0, accuracy: 0.001)
+    }
+
+    func testDefaultShortcutIsOptionSpace() {
+        XCTAssertEqual(DictationShortcut.default.label, "⌥ Space")
+        let rebuilt = makeDictationShortcut(keyCode: DictationShortcut.default.keyCode, held: [.option])
+        XCTAssertEqual(rebuilt, DictationShortcut.default)
+    }
+
+    func testShortcutRequiresControlOptionOrCommand() {
+        let space = DictationShortcut.default.keyCode
+        XCTAssertNil(makeDictationShortcut(keyCode: space, held: []))
+        XCTAssertNil(makeDictationShortcut(keyCode: space, held: [.shift]))
+        XCTAssertNil(makeDictationShortcut(keyCode: UInt32(kVK_Escape), held: [.option]))
+        let controlD = makeDictationShortcut(keyCode: UInt32(kVK_ANSI_D), held: [.control, .shift])
+        XCTAssertEqual(controlD?.label, "⌃⇧ D")
+    }
+
+    func testShortcutRoundTripsThroughDefaults() {
+        let defaults = UserDefaults(suiteName: "shortcut-test-\(UUID().uuidString)")!
+        let chosen = makeDictationShortcut(keyCode: UInt32(kVK_ANSI_D), held: [.command])!
+        DictationShortcutStore.save(chosen, to: defaults)
+        XCTAssertEqual(DictationShortcutStore.load(from: defaults), chosen)
+        defaults.set(Data([0x00]), forKey: DictationShortcutStore.key)
+        XCTAssertEqual(DictationShortcutStore.load(from: defaults), .default)
+    }
+
+    func testChosenShortcutReplacesTheSavedOne() throws {
+        let defaults = UserDefaults(suiteName: "shortcut-app-\(UUID().uuidString)")!
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let app = AppState(
+            recorder: TestRecorder(),
+            files: RecordingFiles(directory: directory),
+            transcriber: FakeTranscriber(),
+            inserter: FakeInserter(),
+            shortcutDefaults: defaults
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        XCTAssertEqual(app.shortcut, .default)
+        var registered: DictationShortcut?
+        app.onShortcutChange = { shortcut in
+            registered = shortcut
+            return true
+        }
+        XCTAssertTrue(app.acceptShortcut(keyCode: UInt32(kVK_ANSI_D), held: [.control]))
+        XCTAssertEqual(app.shortcut.label, "⌃ D")
+        XCTAssertEqual(registered, app.shortcut)
+        XCTAssertFalse(app.isChoosingShortcut)
+        XCTAssertEqual(DictationShortcutStore.load(from: defaults), app.shortcut)
+
+        app.onShortcutChange = { _ in false }
+        XCTAssertFalse(app.acceptShortcut(keyCode: UInt32(kVK_ANSI_F), held: [.option]))
+        XCTAssertEqual(app.shortcut.label, "⌃ D")
+        app.shutdown()
+    }
+
+    func testAboutLabelShowsVersionOne() {
+        XCTAssertEqual(aboutVersionLabel(marketingVersion: "1.0"), "Version 1.0")
+        XCTAssertEqual(aboutVersionLabel(marketingVersion: " 1.0 "), "Version 1.0")
+        XCTAssertEqual(aboutVersionLabel(marketingVersion: nil), "Version 1.0")
+        XCTAssertEqual(aboutVersionLabel(marketingVersion: "  "), "Version 1.0")
+    }
+
+    func testPunctuationAloneIsNotDictatedSpeech() {
+        XCTAssertFalse(isDictatedSpeech("!"))
+        XCTAssertFalse(isDictatedSpeech(" ? "))
+        XCTAssertTrue(isDictatedSpeech("OK!"))
+        XCTAssertTrue(isDictatedSpeech("3"))
     }
 
     func testSustainedSilenceAfterSpeechMarksAPause() {
@@ -503,7 +571,7 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(recorder.startCount, 1)
         XCTAssertEqual(inserter.insertCallCount, 0)
 
-        clock.advance(0.6)
+        clock.advance(0.2)
         recorder.emitLevel(0.0)
         await waitUntil("the paused chunk is inserted") { inserter.insertCallCount == 1 }
 
@@ -524,8 +592,6 @@ final class RecordingTests: XCTestCase {
 
         recorder.emitLevel(0.8)
         clock.advance(0.1)
-        recorder.emitLevel(0.0)
-        clock.advance(0.4)
         recorder.emitLevel(0.0)
         await Task.yield()
 
@@ -561,6 +627,44 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(inserter.insertedTexts, ["first sentence ", "second sentence "])
         XCTAssertEqual(app.lastTranscript?.rawText, "first sentence second sentence")
         XCTAssertEqual(app.state, .continuousRecording)
+        app.shutdown()
+    }
+
+    func testEndingSessionIgnoresAPunctuationOnlyTail() async throws {
+        let (app, recorder, transcriber, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        transcriber.resultText = "!"
+        await app.startContinuousRecording()
+        recorder.emitLevel(0.8)
+
+        await app.stopRecording()
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(inserter.insertCallCount, 0)
+        XCTAssertNil(app.lastTranscript)
+        XCTAssertNil(app.lastError)
+        app.shutdown()
+    }
+
+    func testEndingSessionKeepsEarlierTextWhenTheTailFails() async throws {
+        let (app, recorder, transcriber, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let clock = ManualClock(Date(timeIntervalSince1970: 60_000))
+        app.now = { clock.date }
+        transcriber.pauseTranscription = true
+        await app.startContinuousRecording()
+        emitContinuousPause(recorder, clock: clock)
+
+        let stop = Task { await app.stopRecording() }
+        await waitUntil("both chunks are waiting") { transcriber.transcriptionContinuations.count == 2 }
+        transcriber.resolveNext("hello")
+        transcriber.resolveTranscription(.failure(.transcriptionFailed))
+        await stop.value
+
+        XCTAssertEqual(app.state, .idle)
+        XCTAssertEqual(inserter.insertedTexts, ["hello "])
+        XCTAssertEqual(app.lastTranscript?.rawText, "hello")
+        XCTAssertNil(app.lastError)
         app.shutdown()
     }
 
@@ -963,7 +1067,7 @@ final class RecordingTests: XCTestCase {
         recorder.emitLevel(0.8)
         clock.advance(0.2)
         recorder.emitLevel(0.0)
-        clock.advance(0.6)
+        clock.advance(0.2)
         recorder.emitLevel(0.0)
     }
 

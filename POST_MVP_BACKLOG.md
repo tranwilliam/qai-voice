@@ -177,7 +177,7 @@ Acceptance criteria:
 
 **What shipped:**
 - Option+Space and **Start Dictation** both run continuous mode. There is no separate one-shot command.
-- A pause is 0.6 seconds below input level 0.15, and only after speech. A shorter quiet stretch keeps recording.
+- A pause is 0.0000001 seconds below input level 0.15, and only after speech. The next quiet sample ends the chunk.
 - On that pause the current chunk is transcribed and pasted, with a trailing space so the next chunk does not run into it. The microphone starts again immediately, so speech during transcription is kept for the next chunk.
 - Chunks paste in spoken order even when a later chunk finishes transcribing first.
 - **Stop Dictation** transcribes and pastes whatever was still being recorded.
@@ -185,7 +185,7 @@ Acceptance criteria:
 - The full session transcript is one history entry when the session ends.
 
 **Known limitation:**
-- The pause length is fixed at 0.6 seconds.
+- The pause length is fixed at 0.0000001 seconds.
 
 ## ✅ P3 — Recent transcript history
 
@@ -224,7 +224,7 @@ Add another engine only when benchmarks show a meaningful improvement.
 
 ## P6 — Settings and polish
 
-- Add configurable hotkey, launch-at-login, editable vocabulary, and engine selection.
+- Configurable hotkey is in the menu: Change Shortcut, remembered on this Mac. Still open: launch-at-login, editable vocabulary, and engine selection.
 
 ## P7 — Distribution
 

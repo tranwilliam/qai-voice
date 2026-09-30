@@ -42,6 +42,10 @@ struct MenuBarView: View {
             }
 
             Divider()
+            shortcutSection
+            Divider()
+            aboutSection
+            Divider()
             Button("Quit QAI") {
                 NSApplication.shared.terminate(nil)
             }
@@ -52,6 +56,32 @@ struct MenuBarView: View {
         .animation(.easeOut(duration: 0.2), value: appState.lastError)
         .animation(.easeOut(duration: 0.2), value: appState.lastTranscript)
         .animation(.easeOut(duration: 0.2), value: appState.lastRecording)
+    }
+
+    private var shortcutSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Shortcut \(appState.shortcut.label)")
+                .font(.caption)
+            Button(appState.isChoosingShortcut ? "Waiting for shortcut…" : "Change Shortcut") {
+                appState.beginChoosingShortcut()
+            }
+            .disabled(appState.isChoosingShortcut)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+    }
+
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("About QAI")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(aboutVersionLabel(marketingVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String))
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
     }
 
     private var header: some View {

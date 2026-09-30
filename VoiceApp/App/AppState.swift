@@ -11,6 +11,10 @@ final class AppState {
     private(set) var lastError: RecordingError?
     private(set) var audioLevel: Double = 0
     private(set) var transcriptHistory: [TranscriptHistoryEntry] = []
+    private(set) var shortcut: DictationShortcut
+    private(set) var isChoosingShortcut = false
+    var onShortcutChange: ((DictationShortcut) -> Bool)?
+    var presentShortcutCapture: (() -> Void)?
 
     private let recorder: any AudioRecording
     private let transcriber: any SpeechTranscribing
@@ -28,17 +32,21 @@ final class AppState {
     private var continuousSession: UUID?
     private var deliveryChain: Task<Void, Never> = Task {}
     private var didPromptForAccessibility = false
+    private let shortcutDefaults: UserDefaults
 
     init(
         recorder: any AudioRecording = AudioRecordingService(),
         files: RecordingFiles = RecordingFiles(),
         transcriber: any SpeechTranscribing = AppleSpeechTranscriptionService(),
-        inserter: any TextInserting = PasteboardTextInsertionService()
+        inserter: any TextInserting = PasteboardTextInsertionService(),
+        shortcutDefaults: UserDefaults = UserDefaults(suiteName: "com.williamt.qai") ?? .standard
     ) {
         self.recorder = recorder
         self.files = files
         self.transcriber = transcriber
         self.inserter = inserter
+        self.shortcutDefaults = shortcutDefaults
+        shortcut = DictationShortcutStore.load(from: shortcutDefaults)
         do {
             try files.prepare()
         } catch {
@@ -56,6 +64,27 @@ final class AppState {
             guard self.pauseTracker.consume(level: level, at: self.now()) else { return }
             self.cutChunkForPause()
         }
+    }
+
+    func beginChoosingShortcut() {
+        guard !isChoosingShortcut else { return }
+        isChoosingShortcut = true
+        presentShortcutCapture?()
+    }
+
+    func cancelChoosingShortcut() {
+        isChoosingShortcut = false
+    }
+
+    func acceptShortcut(keyCode: UInt32, held: HeldModifiers) -> Bool {
+        guard let shortcut = makeDictationShortcut(keyCode: keyCode, held: held) else { return false }
+        if let onShortcutChange, !onShortcutChange(shortcut) {
+            return false
+        }
+        self.shortcut = shortcut
+        DictationShortcutStore.save(shortcut, to: shortcutDefaults)
+        isChoosingShortcut = false
+        return true
     }
 
     func startContinuousRecording() async {
@@ -419,7 +448,7 @@ final class AppState {
     private func deliverChunk(_ text: String?, session: UUID) async {
         guard continuousSession == session, let text else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard isDictatedSpeech(trimmed) else { return }
         continuousChunks.append(trimmed)
         sessionTranscript = sessionTranscript.isEmpty ? trimmed : sessionTranscript + " " + trimmed
         lastTranscript = TranscriptionResult(rawText: sessionTranscript, segments: [], duration: 0)
@@ -459,6 +488,9 @@ final class AppState {
         guard continuousSession == session else { return }
         if let transcript = lastTranscript {
             addHistoryEntry(transcript: transcript, recording: recording)
+            if lastError == .transcriptionFailed || lastError == .noSpeechDetected || lastError == .emptyRecording {
+                lastError = nil
+            }
         }
         logger.info("Continuous session completed: \(self.sessionTranscript.count, privacy: .public) characters in \(self.continuousChunks.count, privacy: .public) chunks")
         continuousSession = nil

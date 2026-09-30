@@ -26,8 +26,8 @@ func smoothedMicrophoneLevel(previous: Double, input: Double) -> Double {
 
 struct SpeechPauseTracker: Equatable {
     static let silenceLevel = 0.15
-    /// A breath is shorter than this. A deliberate pause is not.
-    static let pauseDuration: TimeInterval = 0.6
+    /// Short enough that the next quiet microphone sample ends the chunk.
+    static let pauseDuration: TimeInterval = 0.0000001
 
     private var heardSpeech = false
     private var silenceBeganAt: Date?

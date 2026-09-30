@@ -1,3 +1,8 @@
+func aboutVersionLabel(marketingVersion: String?) -> String {
+    let trimmed = marketingVersion?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return "Version \(trimmed.isEmpty ? "1.0" : trimmed)"
+}
+
 enum DictationState {
     case idle
     case requestingPermission
