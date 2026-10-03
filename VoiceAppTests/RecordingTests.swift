@@ -249,6 +249,24 @@ final class RecordingTests: XCTestCase {
         XCTAssertTrue(isDictatedSpeech("3"))
     }
 
+    func testLikelyNoiseFillDropsAShortNo() {
+        XCTAssertTrue(isLikelyNoiseFill("No"))
+        XCTAssertTrue(isLikelyNoiseFill("no."))
+        XCTAssertTrue(isLikelyNoiseFill("Oh", spokenDuration: 0.05, confidence: 0.9))
+        XCTAssertFalse(isLikelyNoiseFill("No", spokenDuration: 0.4, confidence: 0.9))
+        XCTAssertTrue(isLikelyNoiseFill("No", spokenDuration: 0.4, confidence: 0.2))
+        XCTAssertFalse(isLikelyNoiseFill("hello"))
+        XCTAssertFalse(isLikelyNoiseFill("No I don't"))
+    }
+
+    func testAShortNoiseSpikeDoesNotMarkAPause() {
+        var tracker = SpeechPauseTracker()
+        let start = Date(timeIntervalSince1970: 10_000)
+        XCTAssertFalse(tracker.consume(level: 0.9, at: start))
+        XCTAssertFalse(tracker.consume(level: 0.0, at: start.addingTimeInterval(0.05)))
+        XCTAssertFalse(tracker.consume(level: 0.0, at: start.addingTimeInterval(0.10)))
+    }
+
     func testSustainedSilenceAfterSpeechMarksAPause() {
         var tracker = SpeechPauseTracker()
         let spoke = Date(timeIntervalSince1970: 10_000)
@@ -596,6 +614,23 @@ final class RecordingTests: XCTestCase {
         XCTAssertEqual(app.state, .continuousRecording)
         XCTAssertEqual(recorder.startCount, 2)
         XCTAssertTrue(recorder.isRecording)
+        app.shutdown()
+    }
+
+    func testContinuousNoiseWordIsNotInserted() async throws {
+        let (app, recorder, transcriber, inserter, directory) = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let clock = ManualClock(Date(timeIntervalSince1970: 21_000))
+        app.now = { clock.date }
+        transcriber.resultText = "No"
+        await app.startContinuousRecording()
+
+        emitContinuousPause(recorder, clock: clock)
+        await waitUntil("the noise chunk is transcribed") { transcriber.transcribeCallCount == 1 }
+
+        XCTAssertEqual(inserter.insertCallCount, 0)
+        XCTAssertNil(app.lastTranscript)
+        XCTAssertEqual(app.state, .continuousRecording)
         app.shutdown()
     }
 

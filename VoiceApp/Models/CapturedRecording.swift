@@ -91,6 +91,27 @@ func isDictatedSpeech(_ text: String) -> Bool {
     }
 }
 
+private let noiseFillWords: Set<String> = [
+    "no", "oh", "uh", "um", "ah", "mm", "hmm", "nah", "eh", "er", "huh", "hm"
+]
+
+func isLikelyNoiseFill(
+    _ text: String,
+    spokenDuration: TimeInterval = 0,
+    confidence: Float? = nil
+) -> Bool {
+    let word = text
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .trimmingCharacters(in: .punctuationCharacters)
+        .lowercased()
+    guard noiseFillWords.contains(word) else { return false }
+    if spokenDuration >= 0.22 {
+        if let confidence { return confidence < 0.55 }
+        return false
+    }
+    return true
+}
+
 func overlayPhase(previous: DictationState, current: DictationState, lastError: RecordingError?) -> OverlayPhase {
     switch current {
     case .recording, .continuousRecording:

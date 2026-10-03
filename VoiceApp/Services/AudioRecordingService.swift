@@ -28,28 +28,46 @@ struct SpeechPauseTracker: Equatable {
     static let silenceLevel = 0.15
     /// Short enough that the next quiet microphone sample ends the chunk.
     static let pauseDuration: TimeInterval = 0.0000001
+    /// Ignore spikes shorter than this so room noise does not start a chunk.
+    static let minimumSpeechDuration: TimeInterval = 0.18
 
     private var heardSpeech = false
+    private var speechBeganAt: Date?
     private var silenceBeganAt: Date?
 
     mutating func consume(
         level: Double,
         at now: Date,
         silenceLevel: Double = SpeechPauseTracker.silenceLevel,
-        pauseDuration: TimeInterval = SpeechPauseTracker.pauseDuration
+        pauseDuration: TimeInterval = SpeechPauseTracker.pauseDuration,
+        minimumSpeechDuration: TimeInterval = SpeechPauseTracker.minimumSpeechDuration
     ) -> Bool {
         if level >= silenceLevel {
-            heardSpeech = true
+            if speechBeganAt == nil { speechBeganAt = now }
+            if let start = speechBeganAt, now.timeIntervalSince(start) >= minimumSpeechDuration {
+                heardSpeech = true
+            }
             silenceBeganAt = nil
             return false
         }
-        guard heardSpeech else { return false }
+
+        if !heardSpeech {
+            if let start = speechBeganAt, now.timeIntervalSince(start) >= minimumSpeechDuration {
+                heardSpeech = true
+            } else {
+                speechBeganAt = nil
+                silenceBeganAt = nil
+                return false
+            }
+        }
+
         guard let started = silenceBeganAt else {
             silenceBeganAt = now
             return false
         }
         guard now.timeIntervalSince(started) >= pauseDuration else { return false }
         heardSpeech = false
+        speechBeganAt = nil
         silenceBeganAt = nil
         return true
     }

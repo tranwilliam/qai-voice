@@ -9,4 +9,6 @@ struct TranscriptionResult: Equatable {
 struct TranscriptionSegment: Equatable {
     let text: String
     let timestamp: TimeInterval
+    var duration: TimeInterval = 0
+    var confidence: Float = 1
 }

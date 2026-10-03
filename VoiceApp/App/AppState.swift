@@ -438,7 +438,13 @@ final class AppState {
         do {
             let result = try await transcriber.transcribe(fileAt: chunk.url, duration: chunk.duration)
             let trimmed = result.rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            guard !trimmed.isEmpty else { return nil }
+            let spokenDuration = result.segments.reduce(0.0) { $0 + $1.duration }
+            let confidence = result.segments.map(\.confidence).min()
+            guard !isLikelyNoiseFill(trimmed, spokenDuration: spokenDuration, confidence: confidence) else {
+                return nil
+            }
+            return trimmed
         } catch let error as RecordingError {
             if error != .noSpeechDetected && error != .emptyRecording {
                 lastError = error

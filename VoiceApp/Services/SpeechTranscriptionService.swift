@@ -162,7 +162,12 @@ private final class SpeechRecognitionCollector: NSObject, SFSpeechRecognitionTas
 
     func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didHypothesizeTranscription transcription: SFTranscription) {
         let segments = transcription.segments.map {
-            SpeechTranscriptSegment(text: $0.substring, timestamp: $0.timestamp, duration: $0.duration)
+            SpeechTranscriptSegment(
+                text: $0.substring,
+                timestamp: $0.timestamp,
+                duration: $0.duration,
+                confidence: $0.confidence
+            )
         }
         speechDiagnostic("SpeechTrace \(traceID) HYPOTHESIS elapsed=\(Date().timeIntervalSince(traceStart)) count=\(segments.count) text=\(transcription.formattedString.debugDescription)")
         for (index, segment) in segments.enumerated() {
@@ -173,7 +178,12 @@ private final class SpeechRecognitionCollector: NSObject, SFSpeechRecognitionTas
 
     func speechRecognitionTask(_ task: SFSpeechRecognitionTask, didFinishRecognition recognitionResult: SFSpeechRecognitionResult) {
         let segments = recognitionResult.bestTranscription.segments.map {
-            SpeechTranscriptSegment(text: $0.substring, timestamp: $0.timestamp, duration: $0.duration)
+            SpeechTranscriptSegment(
+                text: $0.substring,
+                timestamp: $0.timestamp,
+                duration: $0.duration,
+                confidence: $0.confidence
+            )
         }
         speechDiagnostic("SpeechTrace \(traceID) FINAL elapsed=\(Date().timeIntervalSince(traceStart)) count=\(segments.count) text=\(recognitionResult.bestTranscription.formattedString.debugDescription)")
         for (index, segment) in segments.enumerated() {
@@ -199,7 +209,14 @@ private final class SpeechRecognitionCollector: NSObject, SFSpeechRecognitionTas
         speechDiagnostic("SpeechTrace \(traceID) OUTPUT text=\(text.debugDescription)")
         let result = CollectedTranscription(
             text: text,
-            segments: segments.map { TranscriptionSegment(text: $0.text, timestamp: $0.timestamp) }
+            segments: segments.map {
+                TranscriptionSegment(
+                    text: $0.text,
+                    timestamp: $0.timestamp,
+                    duration: $0.duration,
+                    confidence: $0.confidence
+                )
+            }
         )
         continuation?.resume(returning: UncheckedSendableBox(value: result))
         continuation = nil
@@ -219,6 +236,7 @@ struct SpeechTranscriptSegment: Equatable {
     let text: String
     let timestamp: TimeInterval
     let duration: TimeInterval
+    var confidence: Float = 1
 
     var end: TimeInterval { timestamp + duration }
 }
