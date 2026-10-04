@@ -1,44 +1,90 @@
-# Voice
+# QAI
 
-A native macOS menu bar dictation app, built one milestone at a time from the MVP spec.
+Dictation for people who live in tickets.
 
-## Current milestone: text insertion
+A small native macOS menu-bar app. Press Option+Space, talk, and text lands in whichever field is focused — Jira, Slack, Notes, the browser, VS Code. Click another window and keep talking. No restart.
 
-The full v0.1 loop now works: press Option+Space (or choose Start Dictation), speak, press Option+Space again (or choose Stop Dictation) — the recording is transcribed on-device and the text is inserted directly into whatever app is focused, via the clipboard and a simulated paste. Your previous clipboard contents are restored afterward. The transcript also remains visible in the menu, showing what was just inserted. This completes the v0.1 MVP.
+Apple Speech runs **on this Mac**. Audio and transcripts stay on the machine. There is no account, no analytics, and no network client. The [source](https://github.com/tranwilliam/qai-voice) is public so you can check that.
 
-## Requirements
+Created by [William Tran](https://theqaiguy.com) ([LinkedIn](https://www.linkedin.com/in/williamtranqa)).
 
-- macOS 26 or later
-- Xcode 26 or later, with its license accepted and initial setup completed
-- No third-party dependencies or paid developer account needed for the local build
+## Install
 
-## Build and run
+Current release: **[QAI 1.0](https://github.com/tranwilliam/qai-voice/releases/tag/v1.0)** (`QAI.zip`, about 1.8 MB).
 
-Open `VoiceApp.xcodeproj`, select the `VoiceApp` scheme and My Mac, then Run.
-
-Alternatively, from the project directory:
+1. Download `QAI.zip` and unzip it.
+2. Move `QAI.app` to `/Applications`.
+3. If the zip came from a browser, AirDrop, Messages, or Mail, clear quarantine:
 
 ```sh
-xcodebuild -project VoiceApp.xcodeproj -scheme VoiceApp -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath build build
-open build/Build/Products/Debug/Voice.app
+xattr -cr /Applications/QAI.app
 ```
 
-The application lives in the menu bar, without a main window or Dock icon. The project uses local ad-hoc signing and disables App Sandbox because synthetic-paste text insertion requires posting CGEvents and Accessibility trust, which the sandbox forbids. Hardened runtime is enabled in project settings, but Xcode disables it for this ad-hoc build. The app is not configured for distribution or notarization.
+4. Open QAI. It lives in the menu bar (no Dock icon).
+5. Grant **Microphone**, **Speech Recognition**, and **Accessibility** when prompted.
 
-## Milestone 5 acceptance checks
+Quit any older QAI before opening this one. Accessibility is tied to this ad-hoc signature; grant it again after you replace the app. If paste fails, toggle QAI off and on in **System Settings → Privacy & Security → Accessibility**.
 
-1. Open Apple Notes and place the cursor in a blank note.
-2. Press Option+Space, say "Please run the Playwright regression tests against preprod and check the DynamoDB response," then press Option+Space again.
-3. Confirm the text appears at the cursor in Notes without any manual clipboard interaction, the app returns to Ready, and a second dictation can immediately be performed.
-4. Copy some text to your clipboard first (e.g. a sentence in TextEdit), then dictate as above: confirm your original clipboard contents are back afterward (paste with Cmd+V to check).
-5. Repeat the same flow with the cursor focused in Slack, a browser text field, VS Code, and an email compose window. Confirm text is inserted correctly in each.
-6. The first time Accessibility access is needed, confirm the app's error message directs you to System Settings → Privacy & Security → Accessibility, and that recording/transcription still worked even though insertion couldn't happen yet.
-7. After granting Accessibility access in System Settings, dictate again: confirm insertion now succeeds without needing to relaunch Voice.
+Requires **macOS 26** or later (Apple silicon and Intel).
 
-`VoiceAppTests` covers `AppState`'s insertion step (successful insertion, Accessibility-not-trusted, insertion failure, and cancellation racing an in-flight insertion) against a fake inserter double, in addition to all Milestone 2–4 coverage. Run it from Xcode (`Cmd+U`) or:
+## How you use it
+
+- **Option+Space** (or **Start Dictation** in the menu) starts a continuous session.
+- Speak. When you pause, that chunk is transcribed and pasted at the cursor.
+- Switch apps and keep going. The next paste hits the newly focused field.
+- Option+Space again stops the session and pastes any leftover audio.
+- Change the shortcut from the menu if you want. It is remembered on this Mac.
+
+Leave the app running. You only toggle dictation, not the app.
+
+## What 1.0 includes
+
+- Continuous dictation as the only mode
+- Pause-based insertion while you keep talking
+- On-device Apple Speech (`requiresOnDeviceRecognition`)
+- Predefined terms for QA and AI
+- Recording overlay, session transcript history, and a configurable hotkey
+- About QAI (version, [theQAIguy.com](https://theqaiguy.com), LinkedIn)
+
+## Privacy
+
+- Transcription is forced on-device.
+- Recordings live in a temp folder on that Mac and are cleaned up with session history.
+- Spoken text is not uploaded. There is no crash reporter or telemetry in the app.
+- Read `VoiceApp/Services/SpeechTranscriptionService.swift` if you want to see the recognizer setup yourself.
+
+## Build from source
+
+Needs **Xcode 26**. No third-party packages.
 
 ```sh
-xcodebuild -project VoiceApp.xcodeproj -scheme VoiceApp -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath build test
+xcodebuild -project VoiceApp.xcodeproj -scheme VoiceApp -configuration Debug \
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath build build
+open build/Build/Products/Debug/QAI.app
 ```
 
-The real clipboard/paste mechanics and Accessibility permission flow are not unit tested — they require a live app, a real focused text field, and actual system permission state, so they're verified manually per the acceptance checks above.
+Release:
+
+```sh
+xcodebuild -project VoiceApp.xcodeproj -scheme VoiceApp -configuration Release \
+  -derivedDataPath build
+```
+
+That produces `build/Build/Products/Release/QAI.app`. Zip with `ditto` so the ad-hoc signature survives:
+
+```sh
+ditto -c -k --keepParent QAI.app QAI.zip
+```
+
+Do not use Finder Compress.
+
+The app is signed to run locally (`CODE_SIGN_IDENTITY = -`). App Sandbox is off because paste uses Accessibility (`CGEvent`). Gatekeeper may block a download on another Mac until quarantine is cleared.
+
+## Tests
+
+```sh
+xcodebuild -project VoiceApp.xcodeproj -scheme VoiceApp -configuration Debug \
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath build test
+```
+
+Clipboard paste and live TCC prompts are checked by hand: dictate into Notes, Slack, a browser field, VS Code, and Mail after granting Accessibility.
